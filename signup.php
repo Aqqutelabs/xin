@@ -119,13 +119,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Sign up — <?= htmlspecialchars($APP_NAME) ?></title>
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
   <main class="auth-wrap">
     <section class="auth-card">
       <div class="auth-head">
-        <div class="logo"><img src="assets/logo.svg" alt="logo"></div>
+        <a class="xinng-brand xinng-brand--auth" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
         <h1>Create your account</h1>
         <p class="small">Quickly create an account to manage your links.</p>
       </div>
@@ -190,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const submit = document.querySelector('button[type="submit"]');
     let last = '';
     let timer = null;
-    const reserved = ['login','signin','sign-in','register','signup','sign-up','dashboard','admin','api','settings','links','qr','qrcodes','insights','account','billing','support','help','logout','assets','data','uploads','includes','actions','controllers','page','pages','profile','profiles','u','l'];
+    const reserved = ['login','signin','sign-in','register','signup','sign-up','dashboard','admin','api','settings','links','qr','qrcodes','insights','account','billing','support','help','logout','assets','data','uploads','includes','actions','controllers','page','pages','profile','profiles','u','l','tools','teleprompter'];
     function normalize(s){
       const cleaned = (s || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]+/g, '').replace(/^-+|-+$/g, '');
       return cleaned;

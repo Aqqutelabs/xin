@@ -28,7 +28,7 @@ $initials = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $title), 0, 2))
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($subtitle) ?>">
-  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/style.css">
+  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/style.css">
 </head>
 <body>
   <main class="page">
@@ -57,7 +57,7 @@ $initials = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $title), 0, 2))
         <p class="small"><a href="<?= e($qrUrl) ?>" download="qr-code.png">Download QR Code</a></p>
       </div>
     </section>
-    <div class="footer">Powered by QR Link Manager</div>
+    <div class="footer xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div>
   </main>
 </body>
 </html>

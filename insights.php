@@ -83,7 +83,7 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Insights - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
   <style>
     .insights-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(280px, .65fr); gap:18px; }
     .insights-panel { background:#fff; border:1px solid #e7dfd6; border-radius:16px; padding:22px; }
@@ -106,7 +106,7 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
   <div class="upgrade-bar"><span class="spark"><i class="fa-solid fa-bolt"></i></span><span>Turn attention into measurable action.</span><a class="upgrade-pill" href="pricing.php">Explore plans</a></div>
   <div class="dashboard">
     <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot"><img src="assets/logo.svg" alt="xin.ng logo"></div>
+      <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div>
       <div class="account"><div class="account-main"><span class="avatar"><?= e(insights_initials($user_name)) ?></span><span><?= e($displaySlug ?: $user_name) ?></span><span aria-hidden="true">v</span></div><a class="icon-btn" href="logout.php" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
       <nav><div class="nav-section"><div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
         <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>

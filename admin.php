@@ -78,7 +78,7 @@ if ($loggedIn && isset($_POST['add_sample'])) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin | <?= e($APP_NAME) ?></title>
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
   <main class="admin-shell">
@@ -116,7 +116,7 @@ if ($loggedIn && isset($_POST['add_sample'])) {
             </div>
             <div>
               <label>Logo URL / Path</label>
-              <input name="profile_logo" value="<?= e($data['profile']['logo'] ?? '') ?>" placeholder="assets/logo.png or https://...">
+              <input name="profile_logo" value="<?= e($data['profile']['logo'] ?? '') ?>" placeholder="assets/images/logo.png or https://...">
             </div>
           </div>
           <div style="margin-top:12px">

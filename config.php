@@ -261,7 +261,7 @@ function xinng_reserved_back_halves(): array {
 		'dashboard', 'admin', 'api', 'settings', 'links', 'qr', 'qrcodes',
 		'insights', 'account', 'billing', 'support', 'help', 'logout',
 		'assets', 'data', 'uploads', 'includes', 'actions', 'controllers',
-		'page', 'pages', 'profile', 'profiles', 'u', 'l'
+		'page', 'pages', 'profile', 'profiles', 'u', 'l', 'tools', 'teleprompter'
 	];
 }
 

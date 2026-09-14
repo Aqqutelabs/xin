@@ -256,7 +256,7 @@
         ${state.social_placement !== 'bottom' ? `<div class="pb-socials style-${esc(state.social_style || 'original')}">${socialsHtml}</div>` : ''}
         <div class="pb-blocks">${blocksHtml || `<div class="pb-empty">${esc(mode().empty)}</div>`}</div>
         ${state.social_placement === 'bottom' ? `<div class="pb-socials style-${esc(state.social_style || 'original')}">${socialsHtml}</div>` : ''}
-        ${state.branding?.hide_xinng_logo ? '' : `<div class="pb-brand">Powered by xin.ng</div>`}
+        ${state.branding?.hide_xinng_logo ? '' : `<div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="${esc(config.publicBase)}/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="${esc(config.publicBase)}/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div>`}
       </div>`;
     $('#builder-url-text').textContent = `${config.publicBase.replace(/^https?:\/\//,'')}/${state.slug || 'page'}`;
   }

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/config.php';
 session_start();
 
@@ -126,7 +126,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Links - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
 </head>
 <body>
   <div class="upgrade-bar">
@@ -138,7 +138,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
   <div class="dashboard">
     <aside class="sidebar" aria-label="Dashboard navigation">
       <div class="brand-slot" aria-label="xin.ng brand">
-        <img src="assets/logo.svg" alt="xin.ng logo">
+        <a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
       </div>
 
       <div class="account">

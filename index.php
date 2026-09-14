@@ -10,17 +10,14 @@ $isSignedIn = !empty($_SESSION['user_id']);
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?= htmlspecialchars($APP_NAME) ?> — Smart links, QR codes, and creator pages</title>
   <meta name="description" content="Create dynamic QR codes, branded short links, and polished creator pages with Xinng. Perfect for personal brands, creators, freelancers, and professionals.">
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body class="landing-page">
   <div class="landing-bg-glow" aria-hidden="true"></div>
 
   <header class="landing-nav">
     <div class="landing-nav__inner">
-      <a class="landing-brand" href="index.php">
-        <span class="landing-brand__mark">X</span>
-        <span class="landing-brand__word">xin.ng</span>
-      </a>
+      <a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
       <nav class="landing-nav__links" aria-label="Primary navigation">
         <a href="#features">Solutions</a>
         <a href="#benefits">Use Cases</a>
@@ -223,10 +220,7 @@ $isSignedIn = !empty($_SESSION['user_id']);
   <footer class="landing-footer" id="contact">
     <div class="landing-footer__grid">
       <div class="landing-footer__brand">
-        <a class="landing-brand" href="index.php">
-          <span class="landing-brand__mark">X</span>
-          <span class="landing-brand__word">xin.ng</span>
-        </a>
+        <a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
         <p>Smart QR codes, short links, and branded pages for modern creators and businesses.</p>
       </div>
       <div>

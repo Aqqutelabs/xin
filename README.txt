@@ -32,4 +32,4 @@ IMPORTANT
 CUSTOMIZE
 - Change app name and tagline in config.php.
 - Edit default links from admin.php.
-- Replace styles in assets/style.css.
+- Replace styles in assets/css/style.css.

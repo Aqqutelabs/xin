@@ -50,13 +50,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Reset password — <?= htmlspecialchars($APP_NAME) ?></title>
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
   <main class="auth-wrap">
     <section class="auth-card">
       <div class="auth-head">
-        <div class="logo"><img src="assets/logo.svg" alt="logo"></div>
+        <a class="xinng-brand xinng-brand--auth" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
         <h1>Reset your password</h1>
         <p class="small">Enter the email for your account and we'll send a reset link.</p>
       </div>

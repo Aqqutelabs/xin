@@ -38,7 +38,7 @@ $stack = [
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css">
-  <link rel="stylesheet" href="assets/aquila.css?v=<?= filemtime(__DIR__ . '/assets/aquila.css') ?>">
+  <link rel="stylesheet" href="../assets/css/aquila.css?v=<?= filemtime(__DIR__ . '/../assets/css/aquila.css') ?>">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -53,7 +53,7 @@ $stack = [
   <main id="main" class="page-body">
     <section class="profile-hero" aria-labelledby="profile-name">
       <div class="profile-card">
-        <img class="profile-avatar" src="assets/img/Aquila-headshot-white-bg.png" alt="Aquila Kalagbor headshot">
+        <img class="profile-avatar" src="../assets/images/Aquila-headshot-white-bg.png" alt="Aquila Kalagbor headshot">
 
         <div class="profile-copy">
           <h1 id="profile-name">Aquila Kalagbor <i class="hgi-stroke hgi-shield-01 verified" aria-label="Verified profile"></i></h1>
@@ -103,8 +103,8 @@ $stack = [
         <div class="project-copy"><p class="project-index">CASE STUDY 01 · CIVIC INTELLIGENCE</p><h3>ARVO</h3><h4>Presidential Election Data Platform — Edo State, 2023</h4><p>Designed and supported a civic election data platform processing over 300,000 data points across 7 polls and serving more than 30,000 users.</p><p>The platform unified IREV API data, Kobo Toolbox submissions, and bulk CSV uploads through Microsoft Fabric, Power BI, and interactive Mapbox maps.</p><div class="tags"><span>Microsoft Fabric</span><span>Power BI</span><span>Power Apps</span><span>Mapbox</span><span>Kobo Toolbox</span><span>APIs</span></div></div>
         <div class="project-visual arvo-visual" aria-label="ARVO election data dashboard gallery">
           <div class="arvo-gallery">
-            <figure><img src="assets/img/arvo-2.jpg" alt="ARVO Edo State election dashboard showing result trends, polling units captured, party totals, and an interactive map"><figcaption>Results intelligence · Trends and polling coverage</figcaption></figure>
-            <figure><img src="assets/img/arvo-3.jpg" alt="ARVO Edo State election dashboard showing local government results, interactive map, and voter turnout"><figcaption>Geographic intelligence · LGA results and turnout</figcaption></figure>
+            <figure><img src="../assets/images/arvo-2.jpg" alt="ARVO Edo State election dashboard showing result trends, polling units captured, party totals, and an interactive map"><figcaption>Results intelligence · Trends and polling coverage</figcaption></figure>
+            <figure><img src="../assets/images/arvo-3.jpg" alt="ARVO Edo State election dashboard showing local government results, interactive map, and voter turnout"><figcaption>Geographic intelligence · LGA results and turnout</figcaption></figure>
           </div>
         </div>
         <div class="project-functions"><strong>CORE FUNCTIONS</strong><span>Election data collection</span><span>Multi-source ingestion</span><span>Automated refresh workflows</span><span>Poll-level reporting</span><span>Interactive mapping</span><span>Public reporting interface</span></div>

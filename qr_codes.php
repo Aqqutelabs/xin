@@ -93,7 +93,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>QR Codes - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
 </head>
 <body>
   <div class="upgrade-bar">
@@ -104,7 +104,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
 
   <div class="dashboard">
     <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot" aria-label="xin.ng brand"><img src="assets/logo.svg" alt="xin.ng logo"></div>
+      <div class="brand-slot" aria-label="xin.ng brand"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div>
       <div class="account">
         <div class="account-main">
           <span class="avatar"><?= e(initials($user_name)) ?></span>
@@ -285,7 +285,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
         backgroundOptions: { color: backgroundColor },
         cornersSquareOptions: { type: mapCornerType(design.corner_style), color: cornerColor },
         cornersDotOptions: { type: mapCornerType(design.corner_style), color: cornerColor },
-        image: design.remove_xinng_logo ? undefined : (design.logo_path || 'assets/logo-icon.svg'),
+        image: design.remove_xinng_logo ? undefined : (design.logo_path || 'assets/images/logo-icon.svg'),
         imageOptions: { crossOrigin: 'anonymous', margin: 8, imageSize: 0.25 }
       });
       download.disabled = true;

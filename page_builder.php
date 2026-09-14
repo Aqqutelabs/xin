@@ -53,11 +53,12 @@ $csrf = csrf_token();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Page Builder - <?= e($page['title'] ?: $page['slug']) ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
 </head>
 <body class="builder-page">
   <header class="builder-topbar">
-    <div style="display:flex;align-items:center;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
       <button class="ghost-btn" id="back-to-pages" type="button"><i class="fa-solid fa-arrow-left"></i>&nbsp;Back to pages</button>
       <div class="builder-url"><i class="fa-solid fa-link"></i><strong id="builder-url-text"><?= e(str_replace(['http://','https://'], '', $publicUrl)) ?></strong><button id="copy-page-url" type="button"><i class="fa-regular fa-copy"></i></button></div>
     </div>
@@ -183,6 +184,6 @@ $csrf = csrf_token();
 
     })();
   </script>
-  <script src="assets/page-builder.js"></script>
+  <script src="assets/js/page-builder.js"></script>
 </body>
 </html>

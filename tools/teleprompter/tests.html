@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Teleprompter timing checks</title></head><body>
+<h1>Teleprompter timing checks</h1><p>Dependency-free checks using simulated monotonic time. No script data or browser storage is touched.</p><pre id="results">Running…</pre>
+<script type="module">
+import {parseScript,timing,Playback,clock} from '../../assets/js/teleprompter/core.mjs';
+import {decodePlainText} from '../../assets/js/teleprompter/imports.mjs';
+const results=[];
+function test(name,fn){try{fn();results.push('PASS '+name);}catch(error){results.push('FAIL '+name+': '+error.message);}}
+function assert(value,message='Assertion failed'){if(!value)throw new Error(message);}
+function near(a,b){assert(Math.abs(a-b)<1e-7,`${a} != ${b}`);}
+test('Consistent contractions, hyphens, numbers and non-spoken cues',()=>assert(parseScript("Don't re-read 2026. [Look at camera] **Hello** *world* — !!!").count===5));
+test('Empty and cue-only scripts cannot start',()=>{assert(!timing(parseScript('').count,'pace',135,0).valid);assert(!timing(parseScript('[pause]').count,'pace',135,0).valid);});
+test('675 words / 5 minutes = 135 WPM',()=>{const t=timing(675,'duration',135,300);near(t.wpm,135);near(t.duration,300);assert(t.valid);});
+test('Target completes at exactly 300 active seconds',()=>{const p=new Playback(675,135);p.play(0);p.advance(299999);assert(p.playing);p.advance(300000);assert(!p.playing);near(p.active,300);near(p.position,675);});
+test('20 second hold freezes active time and position',()=>{const p=new Playback(675,135);p.play(0);p.hold('space',10000);const pos=p.position;p.advance(30000);near(p.active,10);near(p.position,pos);p.release('space',30000);p.advance(320000);near(p.active,300);near(p.position,675);});
+test('Paused hold never starts playback on release',()=>{const p=new Playback(10,135);p.hold('space',0);p.release('space',1000);assert(!p.playing);});
+test('Multiple holds wait for the final release',()=>{const p=new Playback(100,135);p.play(0);p.hold('pointer',100);p.hold('space',200);p.release('pointer',300);assert(!p.playing);p.release('space',400);assert(p.playing);});
+test('Cancelled input and stale release stay paused',()=>{const p=new Playback(100,135);p.play(0);p.hold('pointer',100);p.cancel(200);p.release('pointer',300);assert(!p.playing);});
+test('Persistent pause overrides hold resume',()=>{const p=new Playback(100,135);p.play(0);p.hold('space',100);p.pause(200);p.release('space',300);assert(!p.playing);});
+test('Repeated hold is ignored',()=>{const p=new Playback(100,135);p.play(0);p.hold('space',100);p.hold('space',200);p.release('space',300);assert(p.playing);});
+test('Exact 90 and 220 WPM boundaries work',()=>{assert(timing(1000,'duration',0,1000*60/90).valid);assert(timing(1000,'duration',0,1000*60/220).valid);});
+test('Unrounded out-of-bounds WPM is rejected',()=>{assert(!timing(1000,'duration',0,1000*60/220.00001).valid);assert(!timing(1000,'duration',0,1000*60/89.99999).valid);assert(!timing(1000,'duration',0,180).valid);});
+test('Final single word receives its full interval',()=>{const p=new Playback(1,90);p.play(0);p.advance(666);assert(p.playing);p.advance(667);near(p.active,60/90);assert(!p.playing);});
+test('Seek recalculates remaining time and stays paused',()=>{const p=new Playback(100,100);p.play(0);p.advance(10000);p.seek(50,10000);near(p.remaining,30);near(p.active,10);assert(!p.playing);p.seek(0,10000);near(p.active+p.remaining,70);});
+test('Restart clears elapsed time and stays paused',()=>{const p=new Playback(100,100);p.play(0);p.advance(1000);p.reset();near(p.active,0);near(p.position,0);assert(!p.playing);});
+test('Pace changes update remaining schedule',()=>{const p=new Playback(100,100);p.seek(50,0);p.wpm=200;near(p.remaining,15);});
+test('Frame cadence does not change total duration',()=>{const p=new Playback(675,135);p.play(0);for(let i=1;i<=18001;i++)p.advance(i*1000/60);near(p.active,300);near(p.position,675);});
+test('No extra time added after a late frame',()=>{const p=new Playback(1,135);p.play(0);p.advance(10000);near(p.active,60/135);near(p.remaining,0);});
+test('20,000 word ceiling enforced',()=>{assert(timing(20000,'pace',135,0).valid);assert(!timing(20001,'pace',135,0).valid);});
+test('Invalid duration display stays usable',()=>{assert(clock(Infinity)==='0:00');assert(clock(300)==='5:00');});
+test('TXT import preserves wording, cues and paragraphs',()=>{const text='[Look up]\n\nA plain-text rehearsal.\n\n**Speak clearly** and take your time.';assert(decodePlainText(new TextEncoder().encode(text))===text);});
+test('UTF-16 TXT with byte-order mark is accepted',()=>assert(decodePlainText(new Uint8Array([255,254,72,0,105,0]))==='Hi'));
+test('Binary and empty imports are rejected',()=>{for(const bytes of [new Uint8Array([0,1,2,3]),new Uint8Array([])]){let rejected=false;try{decodePlainText(bytes);}catch{rejected=true;}assert(rejected);}});
+test('Oversize script import never silently truncates',()=>{let rejected=false;try{decodePlainText(new TextEncoder().encode('word '.repeat(20001)));}catch{rejected=true;}assert(rejected);});
+document.getElementById('results').textContent=results.join('\n')+'\n\n'+results.filter(s=>s.startsWith('PASS')).length+'/'+results.length+' passed';
+</script></body></html>

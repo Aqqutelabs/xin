@@ -23,7 +23,7 @@ $savedQrId = $qrData['saved_qr_id'] ?? null;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>QR Preview — <?= htmlspecialchars($APP_NAME) ?></title>
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body class="landing-page">
   <div class="landing-bg-glow" aria-hidden="true"></div>

@@ -308,6 +308,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
       .corp-section { padding: 44px 0; }
     }
   </style>
+  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/brand.css">
 </head>
 <body>
   <main class="corp-page">
@@ -511,7 +512,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     </section>
     <?php endif; ?>
 
-    <?php if (empty($page['hide_xinng_logo'])): ?><div class="corp-brand">Powered by xin.ng</div><?php endif; ?>
+    <?php if (empty($page['hide_xinng_logo'])): ?><div class="corp-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
   </main>
 </body>
 </html>
@@ -523,7 +524,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($description) ?>">
-  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/dashboard.css">
+  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/dashboard.css">
   <style>
     :root { font-family: Inter, system-ui, sans-serif; color-scheme: light; }
     body { margin: 0; background: #f7f7fb; line-height: 1.7; }
@@ -531,6 +532,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     .pb-page .pb-header { width: 100%; }
     .pb-page .pb-content { padding-left: 16px; padding-right: 16px; }
   </style>
+  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/brand.css">
 </head>
 <body>
 <?php
@@ -576,7 +578,7 @@ $socialsHtml = implode('', array_map(static fn($social) => '<span>' . public_soc
         <?php if (!$blocks): ?><div class="pb-empty">Add links, content, bookings, and social blocks to build your personal page.</div><?php endif; ?>
       </div>
       <?php if (($page['social_placement'] ?? 'top') === 'bottom'): ?><div class="pb-socials style-<?= e($page['social_icon_style'] ?? 'original') ?>"><?= $socialsHtml ?></div><?php endif; ?>
-      <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-brand">Powered by xin.ng</div><?php endif; ?>
+      <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
     </div>
   </main>
 </body>

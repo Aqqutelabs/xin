@@ -149,11 +149,12 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit QR Code - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css">
 </head>
 <body class="builder-page">
   <header class="builder-topbar">
-    <div style="display:flex;align-items:center;gap:12px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
       <a class="ghost-btn" href="qr_codes.php"><i class="fa-solid fa-arrow-left"></i>&nbsp;Back to QR Codes</a>
       <div class="builder-url"><i class="fa-solid fa-qrcode"></i><strong id="builder-url-text"><?= e($previewTitle) ?></strong></div>
     </div>
@@ -329,7 +330,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const savedQrDataUrl = <?= json_encode($previewQrDataUrl) ?>;
     const fallbackDestination = <?= json_encode($previewDestination) ?>;
     const savedLogoPath = <?= json_encode($qr['logo_path'] ?? '') ?>;
-    const defaultXinngLogo = 'assets/logo-icon.svg';
+    const defaultXinngLogo = 'assets/images/logo-icon.svg';
     const qrCanvasSize = 260;
     const qrLogoSize = 65;
     let previewTimer = null;
