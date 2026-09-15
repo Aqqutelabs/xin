@@ -63,6 +63,7 @@ if ($pdo) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Credits — <?= e($APP_NAME) ?></title>
   <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/style.css">
+  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/credit-pricing.css">
 </head>
 <body class="pricing-page">
   <div class="pricing-shell">
@@ -94,29 +95,7 @@ if ($pdo) {
       <?php if ($notice): ?><div class="notice"><?= e($notice) ?></div><?php endif; ?>
       <?php if ($error): ?><div class="error"><?= e($error) ?></div><?php endif; ?>
 
-      <section class="pricing-grid">
-        <?php foreach ($packages as $package): ?>
-          <article class="package-card">
-            <div class="package-card-header">
-              <div>
-                <span class="package-name"><?= e($package['name']) ?></span>
-                <p class="package-description"><?= e($package['description']) ?></p>
-              </div>
-              <?php if ($package['id'] === 'growth'): ?>
-                <span class="package-badge">Most popular</span>
-              <?php endif; ?>
-            </div>
-            <div class="package-price">
-              <strong><?= number_format($package['credits']) ?> credits</strong>
-              <span>₦<?= number_format($package['price']) ?></span>
-            </div>
-            <div class="package-actions">
-              <button class="btn package-cta" type="button" data-paystack-package="<?= e($package['id']) ?>">Pay with Paystack</button>
-              <button class="btn package-cta secondary" type="button" data-nowpayments-package="<?= e($package['id']) ?>">Pay with crypto</button>
-            </div>
-          </article>
-        <?php endforeach; ?>
-      </section>
+      <?php $pricingContext = 'credits'; include __DIR__ . '/credit-pricing-component.php'; ?>
 
       <section class="transactions-panel">
         <div class="transactions-header">
@@ -160,96 +139,6 @@ if ($pdo) {
   </div>
 
   <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script>
-    const paystackKey = '<?= e(PAYSTACK_PUBLIC_KEY) ?>';
-    const userEmail = '<?= e($userEmail) ?>';
-
-    function showError(message) {
-      const existing = document.querySelector('.error');
-      if (existing) {
-        existing.textContent = message;
-        return;
-      }
-      const container = document.createElement('div');
-      container.className = 'error';
-      container.textContent = message;
-      document.querySelector('.pricing-main').prepend(container);
-    }
-
-    async function startPaystackPayment(packageId) {
-      if (!paystackKey) {
-        showError('Paystack public key is not configured. Set PAYSTACK_PUBLIC_KEY in config.php.');
-        return;
-      }
-      if (!userEmail) {
-        showError('Your account email is required for payment.');
-        return;
-      }
-      try {
-        const response = await fetch('paystack_init.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ package: packageId }),
-        });
-        const data = await response.json();
-        if (!data.ok) {
-          showError(data.error || 'Unable to start payment.');
-          return;
-        }
-        if (typeof PaystackPop === 'undefined') {
-          showError('Paystack checkout failed to load.');
-          return;
-        }
-        const handler = PaystackPop.setup({
-          key: paystackKey,
-          email: userEmail,
-          amount: data.amount,
-          ref: data.reference,
-          currency: 'NGN',
-          callback: function(response) {
-            window.location.href = 'paystack_verify.php?reference=' + encodeURIComponent(response.reference) + '&package=' + encodeURIComponent(packageId);
-          },
-          onClose: function() {
-            showError('Payment was cancelled.');
-          }
-        });
-        handler.openIframe();
-      } catch (err) {
-        showError('Payment request failed.');
-      }
-    }
-
-    document.querySelectorAll('[data-paystack-package]').forEach((button) => {
-      button.addEventListener('click', function() {
-        startPaystackPayment(this.dataset.paystackPackage);
-      });
-    });
-
-    async function startNowPaymentsPayment(packageId) {
-      try {
-        const response = await fetch('nowpayments_init.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ package: packageId }),
-        });
-        const data = await response.json();
-        if (!data.ok) {
-          showError(data.error === 'not_configured'
-            ? 'NOWPayments is not configured yet.'
-            : (data.error || 'Unable to start crypto payment.'));
-          return;
-        }
-        window.location.href = data.invoice_url;
-      } catch (err) {
-        showError('Crypto payment request failed.');
-      }
-    }
-
-    document.querySelectorAll('[data-nowpayments-package]').forEach((button) => {
-      button.addEventListener('click', function() {
-        startNowPaymentsPayment(this.dataset.nowpaymentsPackage);
-      });
-    });
-  </script>
+  <script src="<?= e(xinng_public_base_url()) ?>/assets/js/credit-checkout.js"></script>
 </body>
 </html>

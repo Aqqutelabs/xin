@@ -1,0 +1,24 @@
+.credit-pricing-component { padding:28px; border:1px solid var(--line); border-radius:24px; background:rgba(255,255,255,.88); box-shadow:var(--soft-shadow); }
+.credit-pricing-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+.credit-pricing-eyebrow { margin:0 0 8px; color:var(--brand-red, var(--brand)); font-size:11px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
+.credit-pricing-heading h2 { margin:0; color:var(--ink); font-size:24px; line-height:1.15; }
+.credit-pricing-heading p:last-child { max-width:580px; margin:8px 0 0; color:var(--muted); font-size:14px; line-height:1.55; }
+.credit-pricing-link { display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; color:var(--brand-red, var(--brand)); font-size:13px; font-weight:900; text-decoration:none; }
+.credit-package-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; }
+.credit-package-card { display:flex; min-width:0; flex-direction:column; gap:14px; padding:20px; border:1px solid var(--line); border-radius:18px; background:#fff; }
+.credit-package-card.is-featured { border-color:rgba(183,83,86,.45); box-shadow:0 12px 28px rgba(183,83,86,.12); transform:translateY(-4px); }
+.credit-package-topline { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.credit-package-name { color:var(--ink); font-size:15px; font-weight:900; }
+.credit-package-badge { padding:5px 8px; border-radius:999px; background:var(--brand-red-soft, #f5e3e3); color:var(--brand-red, var(--brand)); font-size:10px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+.credit-package-description { min-height:42px; margin:0; color:var(--muted); font-size:13px; line-height:1.55; }
+.credit-package-price { display:flex; align-items:baseline; gap:7px; color:var(--ink); }
+.credit-package-price strong { font-size:30px; line-height:1; }
+.credit-package-price span { color:var(--muted); font-size:13px; font-weight:800; }
+.credit-package-cost { color:var(--ink); font-size:16px; font-weight:900; }
+.credit-package-cost span { color:var(--muted); font-size:12px; font-weight:700; }
+.credit-package-actions { display:grid; gap:8px; margin-top:auto; }
+.credit-package-button { width:100%; min-height:40px; padding:10px 12px; font-size:12px; }
+.credit-checkout-message { min-height:0; margin-top:14px; color:#991b1b; font-size:13px; font-weight:800; }
+.credit-checkout-message:empty { display:none; }
+@media (max-width:900px) { .credit-package-grid { grid-template-columns:1fr; } .credit-package-card.is-featured { transform:none; } }
+@media (max-width:560px) { .credit-pricing-component { padding:20px; } .credit-pricing-heading { display:block; } .credit-pricing-link { margin-top:14px; } }

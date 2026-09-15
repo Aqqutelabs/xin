@@ -53,6 +53,8 @@ $dbError = false;
 $pdo = get_db_connection();
 $base = public_base_url();
 $creditBalance = 0;
+$userEmail = '';
+$packages = xinng_credit_packages();
 $notifications = [];
 $unreadNotificationCount = 0;
 
@@ -96,9 +98,11 @@ if ($pdo) {
     $stmt->execute([$user_id]);
     $shortLinks = $stmt->fetchAll();
 
-    $stmt = $pdo->prepare('SELECT credit_balance FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $stmt = $pdo->prepare('SELECT credit_balance, email FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
     $stmt->execute([$user_id]);
-    $creditBalance = (int) $stmt->fetchColumn();
+    $creditRow = $stmt->fetch();
+    $creditBalance = (int)($creditRow['credit_balance'] ?? 0);
+    $userEmail = (string)($creditRow['email'] ?? '');
 
     $notifications = xinng_get_notifications($pdo, $user_id, 10);
     $unreadNotificationCount = xinng_unread_notification_count($pdo, $user_id);
@@ -127,6 +131,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
   <title>Links - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link rel="stylesheet" href="assets/css/credit-pricing.css">
 </head>
 <body>
   <div class="upgrade-bar">
@@ -237,6 +242,8 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
               <a class="primary-btn" href="credits.php">Buy more credits</a>
             </div>
           </div>
+
+          <?php include __DIR__ . '/credit-pricing-component.php'; ?>
 
           <div class="model-note" id="model-note">
             <button class="model-note-close" aria-label="Dismiss notice">×</button>
@@ -385,6 +392,8 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
       </div>
     </aside>
   </div>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script src="assets/js/credit-checkout.js"></script>
   <script>
     (function(){
       const csrf = '<?= e(csrf_token()) ?>';
