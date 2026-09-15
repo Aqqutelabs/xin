@@ -23,6 +23,15 @@ function xinng_load_dotenv(string $path): void {
 
 // Auto-load .env in project root
 xinng_load_dotenv(__DIR__ . '/.env');
+
+function xinng_env(string $name, string $fallback = ''): string {
+	$value = getenv($name);
+	if ($value !== false && $value !== '') return (string)$value;
+	if (isset($_ENV[$name]) && $_ENV[$name] !== '') return (string)$_ENV[$name];
+	if (isset($_SERVER[$name]) && $_SERVER[$name] !== '') return (string)$_SERVER[$name];
+	return $fallback;
+}
+
 // QR Link Manager Configuration
 // Change these before uploading publicly.
 
@@ -197,11 +206,11 @@ $QR_LABEL = "xinng";
 // -------------------------
 // Database configuration. Production values should be supplied through .env.
 // The defaults keep the local XAMPP setup working.
-if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'xinng');
-if (!defined('DB_USER')) define('DB_USER', getenv('DB_USER') ?: 'root');
-if (!defined('DB_PASS')) define('DB_PASS', getenv('DB_PASS') ?: '');
-if (!defined('DB_CHARSET')) define('DB_CHARSET', getenv('DB_CHARSET') ?: 'utf8mb4');
+if (!defined('DB_HOST')) define('DB_HOST', xinng_env('DB_HOST', 'localhost'));
+if (!defined('DB_NAME')) define('DB_NAME', xinng_env('DB_NAME', 'xinng'));
+if (!defined('DB_USER')) define('DB_USER', xinng_env('DB_USER', 'root'));
+if (!defined('DB_PASS')) define('DB_PASS', xinng_env('DB_PASS'));
+if (!defined('DB_CHARSET')) define('DB_CHARSET', xinng_env('DB_CHARSET', 'utf8mb4'));
 
 if (!defined('PAYSTACK_PUBLIC_KEY')) define('PAYSTACK_PUBLIC_KEY', getenv('PAYSTACK_PUBLIC_KEY') ?: '');
 if (!defined('PAYSTACK_SECRET_KEY')) define('PAYSTACK_SECRET_KEY', getenv('PAYSTACK_SECRET_KEY') ?: '');
@@ -229,6 +238,7 @@ function get_db_connection(): ?PDO {
 		$pdo = new PDO($dsn, DB_USER, DB_PASS, $opts);
 		return $pdo;
 	} catch (PDOException $e) {
+		$GLOBALS['xinng_db_error'] = $e->getMessage();
 		error_log('DB connection failed: '.$e->getMessage());
 		return null;
 	}
