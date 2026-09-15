@@ -9,6 +9,8 @@ This project includes password reset and SMTP support. Follow these steps before
   - `APP_URL=https://yourdomain.com`
   - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`
   - `GMAIL_USER`, `GMAIL_PASS`, `GMAIL_FROM` (or SMTP_* settings)
+  - `NOWPAYMENTS_API_KEY`, `NOWPAYMENTS_IPN_SECRET`
+  - `NOWPAYMENTS_PRICE_CURRENCY=NGN` (use a currency supported by your NOWPayments account)
 
 2. Composer dependencies
 - On the server (or locally before upload) run:
@@ -29,6 +31,7 @@ composer install --no-dev --prefer-dist
 5. SSL / HTTPS
 - Serve the site over HTTPS. Set `APP_URL` to `https://yourdomain.com`.
 - The app uses the `APP_URL` / `PUBLIC_URL` to build absolute links.
+- In NOWPayments, configure the IPN callback URL as `https://yourdomain.com/nowpayments_ipn.php` and use the same IPN secret as `NOWPAYMENTS_IPN_SECRET`.
 
 6. Mail
 - Use an app password for Gmail (2FA required) or configure a dedicated SMTP/mail provider.

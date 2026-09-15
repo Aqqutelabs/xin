@@ -32,6 +32,7 @@ if (isset($_GET['error'])) {
         'notfound' => 'Payment record not found.',
         'payment_failed' => 'Payment was not successful.',
         'verification_failed' => 'Unable to verify the payment with Paystack.',
+        'payment_cancelled' => 'Payment was cancelled.',
         'missing_secret' => 'Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY in config.php.',
         'auth' => 'Please sign in to complete payment.',
         'bad_request' => 'Failed to start the payment request.',
@@ -81,7 +82,7 @@ if ($pdo) {
         <div class="pricing-hero-copy">
           <p class="eyebrow">Credit Wallet</p>
           <h1>Buy credits for pages, QR codes, and campaigns.</h1>
-          <p class="subtext">Every premium action consumes credits. Purchase securely with Paystack and manage your balance here.</p>
+          <p class="subtext">Every premium action consumes credits. Choose Paystack or pay with cryptocurrency through NOWPayments.</p>
         </div>
         <div class="wallet-card">
           <div class="wallet-card-title">Current balance</div>
@@ -109,7 +110,10 @@ if ($pdo) {
               <strong><?= number_format($package['credits']) ?> credits</strong>
               <span>₦<?= number_format($package['price']) ?></span>
             </div>
-            <button class="btn package-cta" type="button" data-package="<?= e($package['id']) ?>">Buy <?= number_format($package['credits']) ?></button>
+            <div class="package-actions">
+              <button class="btn package-cta" type="button" data-paystack-package="<?= e($package['id']) ?>">Pay with Paystack</button>
+              <button class="btn package-cta secondary" type="button" data-nowpayments-package="<?= e($package['id']) ?>">Pay with crypto</button>
+            </div>
           </article>
         <?php endforeach; ?>
       </section>
@@ -215,9 +219,35 @@ if ($pdo) {
       }
     }
 
-    document.querySelectorAll('[data-package]').forEach((button) => {
+    document.querySelectorAll('[data-paystack-package]').forEach((button) => {
       button.addEventListener('click', function() {
-        startPaystackPayment(this.dataset.package);
+        startPaystackPayment(this.dataset.paystackPackage);
+      });
+    });
+
+    async function startNowPaymentsPayment(packageId) {
+      try {
+        const response = await fetch('nowpayments_init.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ package: packageId }),
+        });
+        const data = await response.json();
+        if (!data.ok) {
+          showError(data.error === 'not_configured'
+            ? 'NOWPayments is not configured yet.'
+            : (data.error || 'Unable to start crypto payment.'));
+          return;
+        }
+        window.location.href = data.invoice_url;
+      } catch (err) {
+        showError('Crypto payment request failed.');
+      }
+    }
+
+    document.querySelectorAll('[data-nowpayments-package]').forEach((button) => {
+      button.addEventListener('click', function() {
+        startNowPaymentsPayment(this.dataset.nowpaymentsPackage);
       });
     });
   </script>

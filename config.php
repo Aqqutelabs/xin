@@ -205,6 +205,10 @@ if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
 
 if (!defined('PAYSTACK_PUBLIC_KEY')) define('PAYSTACK_PUBLIC_KEY', getenv('PAYSTACK_PUBLIC_KEY') ?: '');
 if (!defined('PAYSTACK_SECRET_KEY')) define('PAYSTACK_SECRET_KEY', getenv('PAYSTACK_SECRET_KEY') ?: '');
+if (!defined('NOWPAYMENTS_API_KEY')) define('NOWPAYMENTS_API_KEY', getenv('NOWPAYMENTS_API_KEY') ?: '');
+if (!defined('NOWPAYMENTS_IPN_SECRET')) define('NOWPAYMENTS_IPN_SECRET', getenv('NOWPAYMENTS_IPN_SECRET') ?: '');
+if (!defined('NOWPAYMENTS_API_URL')) define('NOWPAYMENTS_API_URL', rtrim(getenv('NOWPAYMENTS_API_URL') ?: 'https://api.nowpayments.io/v1', '/'));
+if (!defined('NOWPAYMENTS_PRICE_CURRENCY')) define('NOWPAYMENTS_PRICE_CURRENCY', strtoupper(getenv('NOWPAYMENTS_PRICE_CURRENCY') ?: 'NGN'));
 
 if (!function_exists('e')) {
 	function e($value): string {
@@ -436,6 +440,72 @@ function xinng_charge_credits(PDO $pdo, int $user_id, int $amount, string $reaso
 		return false;
 	}
 	return xinng_apply_credit_transaction($pdo, $user_id, 'deduction', -abs($amount), $reason, $reference);
+}
+
+function xinng_complete_credit_purchase(PDO $pdo, array $transaction, array $package, float $paymentAmount, string $paymentCurrency, string $gateway): bool {
+	if (($transaction['status'] ?? '') === 'completed') {
+		return true;
+	}
+
+	$pdo->beginTransaction();
+	try {
+		$stmt = $pdo->prepare('SELECT credit_balance, credits_purchased_total FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+		$stmt->execute([(int)$transaction['user_id']]);
+		$user = $stmt->fetch();
+		if (!$user) {
+			$pdo->rollBack();
+			return false;
+		}
+
+		$newBalance = (int)$user['credit_balance'] + (int)$package['credits'];
+		$newPurchased = (int)$user['credits_purchased_total'] + (int)$package['credits'];
+		$stmt = $pdo->prepare('UPDATE users SET credit_balance = ?, credits_purchased_total = ?, updated_at = NOW() WHERE id = ?');
+		$stmt->execute([$newBalance, $newPurchased, (int)$transaction['user_id']]);
+
+		$stmt = $pdo->prepare('UPDATE credit_transactions SET status = ?, payment_amount = ?, payment_currency = ?, payment_gateway = ?, reason = ? WHERE id = ? AND status = ?');
+		$stmt->execute(['completed', $paymentAmount, strtoupper($paymentCurrency), $gateway, 'Credit purchase', (int)$transaction['id'], 'pending']);
+		if ($stmt->rowCount() !== 1) {
+			$pdo->rollBack();
+			return false;
+		}
+
+		$pdo->commit();
+		return true;
+	} catch (Throwable $e) {
+		if ($pdo->inTransaction()) $pdo->rollBack();
+		throw $e;
+	}
+}
+
+function xinng_nowpayments_request(string $method, string $path, ?array $payload = null): array {
+	if (empty(NOWPAYMENTS_API_KEY)) {
+		return ['ok' => false, 'status' => 0, 'data' => null];
+	}
+
+	$ch = curl_init(NOWPAYMENTS_API_URL . '/' . ltrim($path, '/'));
+	$headers = [
+		'x-api-key: ' . NOWPAYMENTS_API_KEY,
+		'Content-Type: application/json',
+		'Accept: application/json',
+	];
+	curl_setopt_array($ch, [
+		CURLOPT_RETURNTRANSFER => true,
+		CURLOPT_CUSTOMREQUEST => strtoupper($method),
+		CURLOPT_HTTPHEADER => $headers,
+		CURLOPT_TIMEOUT => 20,
+	]);
+	if ($payload !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+	$response = curl_exec($ch);
+	$status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+	$curlError = curl_error($ch);
+	curl_close($ch);
+	if ($response === false || $curlError !== '') {
+		error_log('NOWPayments request failed: ' . ($curlError ?: 'empty response'));
+		return ['ok' => false, 'status' => $status, 'data' => null];
+	}
+
+	$data = json_decode($response, true);
+	return ['ok' => $status >= 200 && $status < 300 && is_array($data), 'status' => $status, 'data' => $data];
 }
 
 function xinng_ensure_short_link_tables(PDO $pdo): void {
