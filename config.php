@@ -195,13 +195,13 @@ function send_mail(string $to, string $subject, string $body, bool $isHtml = fal
 $QR_LABEL = "xinng";
 
 // -------------------------
-// Database configuration
-// Update `DB_USER` / `DB_PASS` for your environment (XAMPP default: root / empty)
-if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
-if (!defined('DB_NAME')) define('DB_NAME', 'xinng');
-if (!defined('DB_USER')) define('DB_USER', 'root');
-if (!defined('DB_PASS')) define('DB_PASS', '');
-if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
+// Database configuration. Production values should be supplied through .env.
+// The defaults keep the local XAMPP setup working.
+if (!defined('DB_HOST')) define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+if (!defined('DB_NAME')) define('DB_NAME', getenv('DB_NAME') ?: 'xinng');
+if (!defined('DB_USER')) define('DB_USER', getenv('DB_USER') ?: 'root');
+if (!defined('DB_PASS')) define('DB_PASS', getenv('DB_PASS') ?: '');
+if (!defined('DB_CHARSET')) define('DB_CHARSET', getenv('DB_CHARSET') ?: 'utf8mb4');
 
 if (!defined('PAYSTACK_PUBLIC_KEY')) define('PAYSTACK_PUBLIC_KEY', getenv('PAYSTACK_PUBLIC_KEY') ?: '');
 if (!defined('PAYSTACK_SECRET_KEY')) define('PAYSTACK_SECRET_KEY', getenv('PAYSTACK_SECRET_KEY') ?: '');
