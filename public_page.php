@@ -512,7 +512,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     </section>
     <?php endif; ?>
 
-    <?php if (empty($page['hide_xinng_logo'])): ?><div class="corp-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
+    <?php if (empty($page['hide_xinng_logo'])): ?><div class="corp-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
   </main>
 </body>
 </html>
@@ -578,7 +578,7 @@ $socialsHtml = implode('', array_map(static fn($social) => '<span>' . public_soc
         <?php if (!$blocks): ?><div class="pb-empty">Add links, content, bookings, and social blocks to build your personal page.</div><?php endif; ?>
       </div>
       <?php if (($page['social_placement'] ?? 'top') === 'bottom'): ?><div class="pb-socials style-<?= e($page['social_icon_style'] ?? 'original') ?>"><?= $socialsHtml ?></div><?php endif; ?>
-      <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
+      <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
     </div>
   </main>
 </body>

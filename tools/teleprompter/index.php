@@ -1,8 +1,10 @@
 <?php
+require_once __DIR__ . "/../../includes/brand.php";
 // Deliberately independent of config.php: guests and offline use need no database.
 $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/tools/teleprompter/index.php');
 $base = preg_replace('~/tools/teleprompter/(?:index\.php)?$~', '', $script);
 if ($base === $script) $base = rtrim(dirname($script), '/.');
+$logoUrl = htmlspecialchars(xinng_brand_logo_url($base), ENT_QUOTES, 'UTF-8');
 $base = htmlspecialchars($base, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -19,7 +21,7 @@ $base = htmlspecialchars($base, ENT_QUOTES, 'UTF-8');
 <body class="tp-app" data-base="<?= $base ?>">
   <a class="tp-skip" href="#script">Skip to script</a>
   <header class="landing-nav"><div class="landing-nav__inner">
-    <a class="xinng-brand" href="<?= $base ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= $base ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
+    <a class="xinng-brand" href="<?= $base ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= $logoUrl ?>" alt="Xinng" width="1736" height="906"></a>
     <nav class="landing-nav__links" aria-label="Primary navigation"><a href="<?= $base ?>/index.php#features">Solutions</a><a href="<?= $base ?>/pricing.php">Pricing</a><a href="<?= $base ?>/signin.php">Login</a><a class="landing-btn landing-btn--primary" href="<?= $base ?>/signup.php">Sign up</a></nav>
   </div></header>
   <main class="tp-shell" id="workspace">
@@ -53,7 +55,7 @@ $base = htmlspecialchars($base, ENT_QUOTES, 'UTF-8');
         <button class="tp-start" id="start">Start prompting <span>↗</span></button><button id="resume-session" hidden>Return to paused session</button><p class="tp-under-start">Just you, your script, and a little confidence.</p>
       </aside>
     </div>
-    <footer class="tp-footer"><a class="xinng-brand xinng-brand--small" href="<?= $base ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= $base ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a><span>Private by default. Scripts stay in this browser, on this device.</span><button id="clear-data">Clear local data</button><button id="help">Shortcuts & help</button></footer>
+    <footer class="tp-footer"><a class="xinng-brand xinng-brand--small" href="<?= $base ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= $logoUrl ?>" alt="Xinng" width="1736" height="906"></a><span>Private by default. Scripts stay in this browser, on this device.</span><button id="clear-data">Clear local data</button><button id="help">Shortcuts & help</button></footer>
     <p id="notice" class="tp-notice" role="status" hidden></p>
   </main>
   <section id="player" hidden aria-label="Teleprompter presentation">

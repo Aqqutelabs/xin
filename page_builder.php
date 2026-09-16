@@ -58,7 +58,7 @@ $csrf = csrf_token();
 <body class="builder-page">
   <header class="builder-topbar">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
+      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
       <button class="ghost-btn" id="back-to-pages" type="button"><i class="fa-solid fa-arrow-left"></i>&nbsp;Back to pages</button>
       <div class="builder-url"><i class="fa-solid fa-link"></i><strong id="builder-url-text"><?= e(str_replace(['http://','https://'], '', $publicUrl)) ?></strong><button id="copy-page-url" type="button"><i class="fa-regular fa-copy"></i></button></div>
     </div>
@@ -161,7 +161,7 @@ $csrf = csrf_token();
   </main>
   <script>
   window.initialPageState = <?= json_encode($state, JSON_UNESCAPED_SLASHES) ?>;
-  window.pageBuilderConfig = { csrf: <?= json_encode($csrf) ?>, publicBase: <?= json_encode(rtrim(xinng_public_base_url(), '/')) ?> };
+  window.pageBuilderConfig = { logoUrl: <?= json_encode(xinng_brand_logo_url(xinng_public_base_url())) ?>, csrf: <?= json_encode($csrf) ?>, publicBase: <?= json_encode(rtrim(xinng_public_base_url(), '/')) ?> };
     (function(){
       // Track simple dirty state without interrupting navigation with browser dialogs
       window.pageBuilderDirty = false;

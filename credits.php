@@ -68,7 +68,7 @@ if ($pdo) {
 <body class="pricing-page">
   <div class="pricing-shell">
     <header class="pricing-topbar">
-      <a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
+      <a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
       <nav class="pricing-nav">
         <a href="dashboard.php">Dashboard</a>
         <a href="pages.php">Pages</a>

@@ -57,7 +57,7 @@ $initials = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $title), 0, 2))
         <p class="small"><a href="<?= e($qrUrl) ?>" download="qr-code.png">Download QR Code</a></p>
       </div>
     </section>
-    <div class="footer xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div>
+    <div class="footer xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
   </main>
 </body>
 </html>

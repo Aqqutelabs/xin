@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/brand.php';
 // Load simple .env file if present (KEY=VALUE lines). This is a tiny loader
 // to avoid requiring external libraries like vlucas/phpdotenv for local setups.
 function xinng_load_dotenv(string $path): void {
@@ -275,7 +276,7 @@ function xinng_reserved_back_halves(): array {
 		'dashboard', 'admin', 'api', 'settings', 'links', 'qr', 'qrcodes',
 		'insights', 'account', 'billing', 'support', 'help', 'logout',
 		'assets', 'data', 'uploads', 'includes', 'actions', 'controllers',
-		'page', 'pages', 'profile', 'profiles', 'u', 'l', 'tools', 'teleprompter'
+		'page', 'pages', 'profile', 'profiles', 'u', 'l', 'tools', 'teleprompter', 'color-scheme'
 	];
 }
 

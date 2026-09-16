@@ -106,7 +106,7 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
   <div class="upgrade-bar"><span class="spark"><i class="fa-solid fa-bolt"></i></span><span>Turn attention into measurable action.</span><a class="upgrade-pill" href="pricing.php">Explore plans</a></div>
   <div class="dashboard">
     <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a></div>
+      <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
       <div class="account"><div class="account-main"><span class="avatar"><?= e(insights_initials($user_name)) ?></span><span><?= e($displaySlug ?: $user_name) ?></span><span aria-hidden="true">v</span></div><a class="icon-btn" href="logout.php" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
       <nav><div class="nav-section"><div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
         <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>

@@ -154,7 +154,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
 <body class="builder-page">
   <header class="builder-topbar">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_public_base_url()) ?>/assets/images/logo.svg" alt="Xinng" width="1736" height="906"></a>
+      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
       <a class="ghost-btn" href="qr_codes.php"><i class="fa-solid fa-arrow-left"></i>&nbsp;Back to QR Codes</a>
       <div class="builder-url"><i class="fa-solid fa-qrcode"></i><strong id="builder-url-text"><?= e($previewTitle) ?></strong></div>
     </div>

@@ -33,3 +33,9 @@ coverage/
 # Keep public assets tracked when needed, but ignore generated uploads
 uploads/**
 !uploads/.gitkeep
+
+# Local color-scheme reference page and its assets
+/color-scheme.php
+/assets/css/color-scheme.css
+/assets/css/ember-tokens.css
+/assets/js/color-scheme.js
