@@ -6,6 +6,7 @@ RewriteRule ^ - [L]
 
 RewriteRule ^teleprompter/?$ tools/teleprompter/ [R=302,L]
 RewriteRule ^color-scheme/?$ color-scheme.php [L]
+RewriteRule ^tools/creator-calculator/x/r/([a-f0-9]{48})/?$ tools/creator-calculator/x/result.php?token=$1 [L]
 
 RewriteRule ^api/short-links/?$ api/short-links.php [QSA,L]
 RewriteRule ^api/short-links/([0-9]+)/?$ api/short-links.php?id=$1 [QSA,L]
