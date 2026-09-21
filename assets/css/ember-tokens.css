@@ -1,0 +1,25 @@
+/* Xing Ember ? reference tokens. Opt in by loading this stylesheet. */
+:root {
+  --xing-red-50: #fff5f3;
+  --xing-red-100: #fde9e6;
+  --xing-red-200: #facbc5;
+  --xing-red-300: #f59b92;
+  --xing-red-400: #ff6a5f;
+  --xing-red-500: #e83b32;
+  --xing-red-600: #c92a24;
+  --xing-red-700: #a6201d;
+  --xing-red-800: #8f1717;
+  --xing-red-900: #4a1012;
+
+  --xing-ink: #201a19;
+  --xing-stone: #6f6562;
+  --xing-border: #e7dedb;
+  --xing-surface: #ffffff;
+  --xing-canvas: #fff9f7;
+
+  --xing-gold: #ffbf3f;
+  --xing-blue: #3ba7e8;
+  --xing-success: #1f9d68;
+  --xing-warning: #d97706;
+  --xing-error: #a61924;
+}
