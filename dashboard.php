@@ -128,17 +128,17 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Links - <?= e($APP_NAME ?? 'xin.ng') ?></title>
+  <title>Dashboard - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css">
   <link rel="stylesheet" href="assets/css/credit-pricing.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/dashboard-home.css?v=<?= filemtime(__DIR__ . '/assets/css/dashboard-home.css') ?>">
 </head>
-<body>
-  <div class="upgrade-bar">
-    <span class="spark"><i class="fa-solid fa-bolt"></i></span>
-    <span>Elevate your design with better themes and styles.</span>
-    <a class="upgrade-pill" href="#" aria-label="Upgrade account">Lightning Upgrade</a>
-  </div>
+<body class="dashboard-home">
+  <a class="dashboard-skip" href="#workspace">Skip to workspace</a>
 
   <div class="dashboard">
     <aside class="sidebar" aria-label="Dashboard navigation">
@@ -150,10 +150,6 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
         <div class="account-main">
           <span class="avatar"><?= e(initials($user_name)) ?></span>
           <span><?= e($displaySlug ?: $user_name) ?></span>
-          <span aria-hidden="true">v</span>
-        </div>
-        <div class="account-actions" style="margin-top:8px">
-          <a class="ghost-btn" href="logout.php" aria-label="Log out">Log out</a>
         </div>
       </div>
 
@@ -165,23 +161,24 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
           <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
           <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-coins"></i></span>Credits</a>
           <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
+          <a class="nav-item sidebar-logout" href="logout.php"><span class="nav-icon"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i></span>Log out</a>
         </div>
 
       </nav>
 
       <div class="setup-card">
-        <div class="progress-ring" style="--completion: <?= (int) $completion ?>%;"><?= (int) $completion ?>%</div>
-        <strong>Your setup checklist</strong>
-        <p><?= $activePage ? '4 of 6 complete' : '1 of 6 complete' ?></p>
-        <a class="primary-btn" href="signup.php"><span class="label-icon"><i class="fa-solid fa-check"></i></span>Finish setup</a>
+        <img src="assets/images/drag-xinng/stare.png" alt="" width="90" height="90">
+        <strong>A home for your different sides.</strong>
+        <p>Bring your work, ideas and important links together.</p>
+        <a class="primary-btn" href="pages.php">Manage your pages <span aria-hidden="true">&rarr;</span></a>
       </div>
     </aside>
 
-    <main class="main">
+    <main class="main" id="workspace" tabindex="-1">
       <header class="main-header">
         <div class="header-title">
-          <h1>Short links</h1>
-          <span>Create memorable URLs, then place them on pages or QR campaigns.</span>
+          <h1>Your workspace</h1>
+          <span>Your pages, links and connections, in one place.</span>
         </div>
         <div class="header-actions">
           <div class="notification-wrapper">
@@ -225,6 +222,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
             <div class="notice">Database connection is not available. The dashboard design is loaded, but live page data cannot be shown.</div>
           <?php endif; ?>
 
+          <section class="workspace-welcome" aria-labelledby="welcome-heading"><div><p class="welcome-eyebrow">MAKE YOURSELF AT HOME</p><h2 id="welcome-heading">Welcome back, <?= e($user_name) ?>.</h2><p>Make room for your next idea.</p></div><a href="pages.php">Your pages <span aria-hidden="true">&nearr;</span></a></section>
           <div class="stats-row" aria-label="Workspace analytics summary">
             <div class="stat-card"><strong><?= number_format((int) $totalViews) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-regular fa-eye"></i></span>Page views</span></div>
             <div class="stat-card"><strong><?= number_format((int) $totalQr) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-qrcode"></i></span>QR scans</span></div>
@@ -247,7 +245,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
 
           <div class="model-note" id="model-note">
             <button class="model-note-close" aria-label="Dismiss notice">×</button>
-            <strong>Links are short-link assets.</strong> Pages are page builders, and QR codes are standalone trackable assets. Add existing links to this page, or create a new short link from here.
+            <strong>Shorter links. Easier sharing.</strong> Create a memorable address for any destination, then share it on your page or through a QR code.
           </div>
 
           <button class="primary-btn add-btn" type="button" id="add-short-link"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Add short link</button>
