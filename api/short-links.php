@@ -74,16 +74,10 @@ try {
 			exit;
 		}
 		if ($title === '') $title = $backHalf['back_half'];
-		if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-			http_response_code(402);
-			echo json_encode(['ok' => false, 'error' => 'insufficient_credits']);
-			exit;
-		}
 
 		$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 		$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
 		$shortLinkId = (int)$pdo->lastInsertId();
-		xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $shortLinkId);
 		$row = current_user_short_link($pdo, $shortLinkId, $user_id);
 		echo json_encode(['ok' => true, 'short_link' => short_link_row($row)]);
 		exit;
@@ -126,15 +120,9 @@ try {
 				exit;
 			}
 			if ($title === '') $title = $backHalf['back_half'];
-			if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-				http_response_code(402);
-				echo json_encode(['ok' => false, 'error' => 'insufficient_credits']);
-				exit;
-			}
 			$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 			$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
 			$shortLinkId = (int)$pdo->lastInsertId();
-			xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $shortLinkId);
 			$newRow = current_user_short_link($pdo, $shortLinkId, $user_id);
 			echo json_encode(['ok' => true, 'created_new' => true, 'short_link' => short_link_row($newRow)]);
 			exit;

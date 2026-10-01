@@ -132,22 +132,15 @@ function save_qr_data(PDO $pdo, int $user_id, array $payload, ?array $existing =
 
 	if ($existing) {
 		if (($existing['type'] ?? '') === 'profile_page') return ['ok' => false, 'error' => 'Profile QR cannot be edited from here.'];
-		if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-			return ['ok' => false, 'error' => 'insufficient_credits'];
-		}
 		$stmt = $pdo->prepare('UPDATE qr_codes SET short_link_id = ?, type = ?, title = ?, name = ?, destination_url = ?, back_half = ?, code_color = ?, background_color = ?, corner_color = ?, pattern_style = ?, corner_style = ?, frame_style = ?, frame_text = ?, logo_path = ?, remove_xinng_logo = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
 		$stmt->execute([$shortLinkId, $type, $title, $title, $destination['url'], $backHalf['back_half'], $codeColor, $bgColor, $cornerColor, $pattern, $corner, $frame ?: null, $frameText ?: null, $logoPath ?: null, $removeLogo, (int)$existing['id'], $user_id]);
 		$id = (int)$existing['id'];
 	} else {
-		if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-			return ['ok' => false, 'error' => 'insufficient_credits'];
-		}
 		$stmt = $pdo->prepare('INSERT INTO qr_codes (user_id, short_link_id, type, title, name, destination_url, back_half, status, code_color, background_color, corner_color, pattern_style, corner_style, frame_style, frame_text, logo_path, remove_xinng_logo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, "active", ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
 		$stmt->execute([$user_id, $shortLinkId, $type, $title, $title, $destination['url'], $backHalf['back_half'], $codeColor, $bgColor, $cornerColor, $pattern, $corner, $frame ?: null, $frameText ?: null, $logoPath ?: null, $removeLogo]);
 		$id = (int)$pdo->lastInsertId();
 	}
 
-	xinng_charge_credits($pdo, $user_id, 1, 'Create QR code', 'qr:' . $id);
 	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
 	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $destination['url']), $id]);
 	return ['ok' => true, 'qr_code' => qr_row(current_qr($pdo, $id, $user_id))];
