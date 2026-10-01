@@ -384,16 +384,33 @@ function xinng_normalize_back_half(string $value): ?string {
 function xinng_public_base_url(): string {
 	global $PUBLIC_URL;
 	if (!empty($PUBLIC_URL)) {
-		return (stripos($PUBLIC_URL, 'http') === 0) ? rtrim($PUBLIC_URL, '/') : 'http://' . rtrim($PUBLIC_URL, '/');
+		$url = rtrim($PUBLIC_URL, '/');
+		if (!preg_match('#^https?://#i', $url)) {
+			$url = 'https://' . ltrim($url, '/');
+		}
+		if (stripos($url, 'http://') === 0) {
+			$host = preg_replace('#^http://#i', '', $url);
+			$host = preg_replace('#/.*$#', '', $host);
+			$isLocalHost = preg_match('/^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i', $host);
+			if (!$isLocalHost) {
+				$url = 'https://' . substr($url, 7);
+			}
+		}
+		return $url;
 	}
 	$scheme = 'http';
 	if (
 		(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 		|| strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+		|| strtolower((string)($_SERVER['REQUEST_SCHEME'] ?? '')) === 'https'
 	) {
 		$scheme = 'https';
 	}
 	$host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? ($_SERVER['HTTP_HOST'] ?? 'localhost');
+	$isLocalHost = preg_match('/^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i', $host);
+	if (!$isLocalHost && $scheme === 'http') {
+		$scheme = 'https';
+	}
 	$basePath = '';
 	$documentRoot = !empty($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : false;
 	$appRoot = realpath(__DIR__);
