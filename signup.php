@@ -34,11 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     xinng_ensure_short_link_tables($pdo);
                     xinng_ensure_page_builder_tables($pdo);
                     xinng_ensure_credit_tables($pdo);
+                    xinng_ensure_api_token_table($pdo);
                     $pdo->beginTransaction();
 
                     $stmt = $pdo->prepare('INSERT INTO users (uuid, name, email, password_hash, credit_balance, credits_purchased_total, credits_used_total, created_at, updated_at) VALUES (UUID(), ?, ?, ?, 1000, 0, 0, NOW(), NOW())');
                     $stmt->execute([$name, $email, $hash]);
                     $newId = $pdo->lastInsertId();
+                    $apiToken = xinng_issue_api_token($pdo, (int)$newId);
 
                     $stmt = $pdo->prepare('INSERT INTO credit_transactions (user_id, type, amount, reason, reference, created_at) VALUES (?, "signup_bonus", 1000, "Signup bonus", "signup", NOW())');
                     $stmt->execute([$newId]);
@@ -85,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $_SESSION['user_id'] = $newId;
                     $_SESSION['user_name'] = $name;
+                    $_SESSION['new_api_token'] = $apiToken;
 
                     if (!empty($_SESSION['pending_qr'])) {
                         $savedId = xinng_persist_pending_qr($pdo, $_SESSION['pending_qr'], $newId);

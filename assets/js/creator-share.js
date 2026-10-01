@@ -81,7 +81,7 @@
    document.getElementById('share-link').value = resultUrl;
    document.getElementById('share-link-wrap').hidden = false;
    copy.disabled = false; actions.hidden = false;
-   xLink.href = 'https://twitter.com/intent/tweet?' + new URLSearchParams({text:'My X creator result.',url:resultUrl}); xLink.hidden = false;
+    xLink.href = 'https://x.com/intent/post?' + new URLSearchParams({text:'My X creator result.',url:resultUrl}); xLink.hidden = false;
    const rendered = await draw(data.card);
    if (current !== generation) return;
    display(rendered); status.textContent = 'Ready to share.';

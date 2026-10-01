@@ -63,9 +63,12 @@ $csrf = csrf_token();
       <div class="builder-url"><i class="fa-solid fa-link"></i><strong id="builder-url-text"><?= e(str_replace(['http://','https://'], '', $publicUrl)) ?></strong><button id="copy-page-url" type="button"><i class="fa-regular fa-copy"></i></button></div>
     </div>
     <div class="builder-actions">
-      <button class="small-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
-      <a class="small-btn" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-      <button class="small-btn" type="button"><i class="fa-solid fa-share-nodes"></i>Share</button>
+      <a class="small-btn builder-ai-link" href="ai_page.php"><i class="fa-solid fa-wand-magic-sparkles"></i> AI builder</a>
+      <div class="builder-icon-actions" aria-label="Page tools">
+        <button class="small-btn" type="button" aria-label="More page tools"><i class="fa-solid fa-ellipsis"></i></button>
+        <a class="small-btn" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" aria-label="Open public page"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+      </div>
+      <button class="small-btn builder-share-btn" type="button" id="share-page-on-x" data-x-share="<?= e($publicUrl) ?>" data-x-share-text="Check out my Xinng page."><i class="fa-brands fa-x-twitter"></i>Share on X</button>
       <button class="small-btn primary" id="publish-page" type="button" disabled>Publish changes</button>
     </div>
   </header>
@@ -109,7 +112,7 @@ $csrf = csrf_token();
             <label>Image</label>
             <div class="image-picker"><div class="image-placeholder" id="profile-image-preview"><i class="fa-regular fa-image"></i></div><label class="small-btn">Add image<input id="profile-image-input" type="file" accept="image/*" hidden></label><button class="small-btn" id="remove-profile-image" type="button">Remove</button></div>
             <label>Title <span id="title-count">0/32</span></label><input id="page-title" maxlength="32">
-            <label>Description <span id="desc-count">0/80</span></label><input id="page-description" maxlength="80">
+            <label>Description <span id="desc-count">0/255</span></label><input id="page-description" maxlength="255">
           </div>
           <div class="design-card">
             <h2>Page</h2><label>Slug</label><input id="page-slug" maxlength="64">
@@ -185,5 +188,6 @@ $csrf = csrf_token();
     })();
   </script>
   <script src="assets/js/page-builder.js"></script>
+  <script src="assets/js/x-share.js"></script>
 </body>
 </html>

@@ -187,10 +187,10 @@
     const socials = (c.socials || []).filter(s => s.platform && s.url).slice(0, 6);
     const specialties = (c.specialties || []).filter(Boolean).slice(0, 3);
     const locations = (c.locations || []).filter(Boolean).slice(0, 3);
-    const actionItems = [];
-    if (contact.meeting_link) actionItems.push('<span>Book Meeting</span>');
-    if (contact.brochure_link) actionItems.push('<span>Download Brochure</span>');
-    if (c.quote_title || c.quote_description || c.quote_button_label) actionItems.push('<span>Request Quote</span>');
+    const heroButtons = [];
+    if (c.hero_primary_cta_url) heroButtons.push({ label: c.hero_primary_cta_label || 'Learn more', url: c.hero_primary_cta_url, color: '#1979BF', text: '#FFFFFF' });
+    (c.buttons || []).filter(button => button.label && button.url).forEach(button => heroButtons.push({ label: button.label, url: button.url, color: button.button_color || '#1979BF', text: button.text_color || '#FFFFFF' }));
+    if (contact.meeting_link) heroButtons.push({ label: event.title || event.button_label || 'Book meeting', url: contact.meeting_link, color: '#1979BF', text: '#FFFFFF' });
     const header = c.header_photo ? `background-image:linear-gradient(rgba(0,27,52,.58),rgba(0,27,52,.58)),url('${esc(c.header_photo)}')` : 'background:#d9d9d9';
     const logo = c.logo || state.profile_image;
     preview.style.cssText = 'background:#f4f6f8;font-family:Inter,system-ui,sans-serif;';
@@ -210,12 +210,12 @@
             ${contact.phone ? `<a>PH</a>` : ''}
             ${contact.email ? `<a>EM</a>` : ''}
           </div>` : ''}
+          ${heroButtons.length ? `<div class="corp-pv-primary-actions">${heroButtons.map(button => `<a class="corp-pv-primary" href="${esc(button.url)}" style="background:${esc(button.color)};color:${esc(button.text)}" target="_blank" rel="noopener">${esc(button.label)} <i class="fa-solid fa-arrow-right"></i></a>`).join('')}</div>` : ''}
         </section>
         ${event.title ? `<section class="corp-pv-event" style="background:${esc(event.card_color || '#062947')}"><strong>${esc(event.title)}</strong><small>${esc([event.city, event.location].filter(Boolean).join(' - '))}</small></section>` : ''}
-        <section class="corp-pv-section"><h3>What would you like to do?</h3><div class="corp-pv-grid">
-          ${contact.meeting_link ? `<span>Book Meeting</span>` : ''}
-          ${contact.brochure_link ? `<span>Download Brochure</span>` : ''}
-          <span>Request Quote</span>
+        <section class="corp-pv-section"><h3>${esc(c.actions_title || 'What would you like to do?')}</h3><div class="corp-pv-grid">
+          ${heroButtons.map(button => `<a class="corp-pv-action-link" href="${esc(button.url)}" style="color:${esc(button.color)}">${esc(button.label)} <i class="fa-solid fa-arrow-right"></i></a>`).join('')}
+          ${c.quote_title || c.quote_description || c.quote_button_label ? '<span class="corp-pv-action-link">Request Quote</span>' : ''}
         </div></section>
         <section class="corp-pv-section"><h3>Cards</h3>${cards.map(card => `<article class="corp-pv-card"><strong>${esc(card.title)}</strong><small>${esc(card.description || card.type)}</small></article>`).join('') || '<article class="corp-pv-card"><strong>Add cards</strong><small>Capability, PDF, video, or text cards appear here.</small></article>'}</section>
         ${socials.length ? `<div class="corp-pv-socials">${socials.map(s => `<span>${socialIcon(s.platform || 'Link')}</span>`).join('')}</div>` : ''}
@@ -310,7 +310,7 @@
     $('#block-text-color').value = state.block_style?.block_text_color || '#FFFAF6';
     $('#hide-branding').checked = !!state.branding?.hide_xinng_logo;
     $('#title-count').textContent = `${(state.title || '').length}/32`;
-    $('#desc-count').textContent = `${(state.description || '').length}/80`;
+    $('#desc-count').textContent = `${(state.description || '').length}/255`;
     $('#profile-image-preview').innerHTML = state.profile_image ? `<img src="${esc(state.profile_image)}" alt="">` : `<i class="fa-regular fa-image"></i>`;
 
     $('#theme-row').innerHTML = Object.keys(themes).map(name => `<button class="theme-dot ${state.theme === name ? 'active' : ''}" data-theme="${name}" style="--theme:${themes[name].header}"></button>`).join('');
@@ -336,9 +336,20 @@
     if (!suggested || !more) return;
     const suggestedTypes = mode().suggestedTypes || [];
     const allTypes = Object.keys(blockTypes);
-    const buttonHtml = type => `<button data-type="${esc(type)}" type="button">${esc(blockLabel(type))}</button>`;
-    suggested.innerHTML = suggestedTypes.map(buttonHtml).join('');
-    more.innerHTML = allTypes.filter(type => !suggestedTypes.includes(type)).map(buttonHtml).join('');
+    const categories = [
+      { label: 'Content', icon: 'fa-file-lines', types: ['text', 'capability', 'document_hub', 'file', 'investor_material'] },
+      { label: 'Media', icon: 'fa-photo-film', types: ['image', 'video', 'youtube', 'music'] },
+      { label: 'Links & social', icon: 'fa-link', types: ['link', 'social', 'social_feed', 'short_link', 'qr'] },
+      { label: 'Contact & booking', icon: 'fa-calendar-check', types: ['contact', 'booking', 'cta', 'meeting_booking', 'contact_routing', 'event_countdown'] },
+      { label: 'Business', icon: 'fa-building', types: ['product_catalogue', 'shop', 'subscribe', 'tip_jar', 'team_member'] }
+    ];
+    const buttonHtml = type => `<button data-type="${esc(type)}" type="button"><i class="fa-solid ${esc(categories.find(category => category.types.includes(type))?.icon || 'fa-plus')}" aria-hidden="true"></i><span>${esc(blockLabel(type))}</span></button>`;
+    const groupedHtml = types => categories.map(category => {
+      const categoryTypes = types.filter(type => category.types.includes(type));
+      return categoryTypes.length ? `<section class="block-menu-section"><h3><i class="fa-solid ${category.icon}" aria-hidden="true"></i>${category.label}</h3><div class="block-type-group">${categoryTypes.map(buttonHtml).join('')}</div></section>` : '';
+    }).join('');
+    suggested.innerHTML = groupedHtml(suggestedTypes);
+    more.innerHTML = groupedHtml(allTypes.filter(type => !suggestedTypes.includes(type)));
   }
 
   function getPath(path) {
@@ -468,7 +479,28 @@
     }
   }
 
+  function replaceState(next) {
+    const pageIdentity = { id: state.id, slug: state.slug };
+    Object.keys(state).forEach(key => delete state[key]);
+    Object.assign(state, next || {}, pageIdentity);
+  }
+
   function rerender() { renderBlocks(); renderDesignControls(); renderCorporateControls(); renderPreview(); }
+
+  const stagedDraftKey = `xinng-ai-draft:${state.id}`;
+  try {
+    const stagedDraft = sessionStorage.getItem(stagedDraftKey);
+    if (stagedDraft) {
+      const draft = JSON.parse(stagedDraft);
+      sessionStorage.removeItem(stagedDraftKey);
+      replaceState(draft);
+      markDirty();
+      const note = $('#builder-mode-note');
+      if (note) note.innerHTML = '<strong>AI draft loaded</strong><span>Review the generated sections, then publish your changes.</span>';
+    }
+  } catch (error) {
+    console.warn('Unable to load staged AI draft', error);
+  }
 
   function fileToDataUrl(file, cb) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -537,7 +569,7 @@
     }
     const id = e.target.id;
     if (id === 'page-title') state.title = e.target.value.slice(0,32);
-    else if (id === 'page-description') state.description = e.target.value.slice(0,80);
+    else if (id === 'page-description') state.description = e.target.value.slice(0,255);
     else if (id === 'page-slug') state.slug = e.target.value.toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'');
     else if (id === 'header-color') state.header.color = e.target.value;
     else if (id === 'header-gradient-start') state.header.gradient_start = e.target.value;

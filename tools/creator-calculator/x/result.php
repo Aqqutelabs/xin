@@ -22,8 +22,8 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, '
 <?php if ($card): ?>
 <canvas id="share-canvas" width="1080" height="1350" aria-label="Shared X creator result card" role="img" hidden></canvas>
 <div class="sr-only"><h1><?= $e($card['outcome']['headline'] ?? $card['rows'][0]['label']) ?></h1><p><?= $e($card['outcome']['value'] ?? $card['rows'][0]['value']) ?></p></div>
-<button type="button" class="primary-button" id="share-download" disabled>Download image</button><p id="share-status" role="status"></p>
+<button type="button" class="primary-button" id="share-download" disabled>Download image</button><button type="button" class="primary-button" data-x-share-text="My X creator result.">Share on X</button><p id="share-status" role="status"></p>
 <script type="application/json" id="public-share-data"><?= json_encode($card, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
 <?php else: ?><h1><?= $unavailable ? 'Temporarily unavailable' : 'Result not found' ?></h1><p><?= $unavailable ? 'Please try this link again later.' : 'This result link is invalid or no longer available.' ?></p><?php endif; ?>
 <p><a href="<?= $e($base) ?>/tools/creator-calculator/x/">Calculate your own progress →</a></p>
-</main></body></html>
+</main><script src="<?= $e($base) ?>/assets/js/x-share.js"></script></body></html>

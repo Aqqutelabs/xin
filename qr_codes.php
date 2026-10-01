@@ -142,6 +142,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
       </header>
 
       <div class="content">
+        <?php include __DIR__ . '/includes/api-token-notice.php'; ?>
         <div class="editor-column">
           <?php if ($dbError): ?><div class="notice">Database connection is not available.</div><?php endif; ?>
           <div class="stats-row" aria-label="Workspace analytics summary">
@@ -195,6 +196,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
                 <div class="link-actions">
                   <a class="action-icon" href="edit_qr_code.php?id=<?= e($qr['id']) ?>" title="Edit"><i class="fa-solid fa-pen"></i></a>
                   <button class="action-icon download-qr-code" type="button" title="Download QR code" aria-label="Download QR code"><i class="fa-solid fa-download"></i></button>
+                  <button class="action-icon" type="button" data-x-share="<?= e($destination) ?>" data-x-share-text="<?= e('Scan my ' . $title . ' from Xinng.') ?>" title="Share on X" aria-label="Share on X"><i class="fa-brands fa-x-twitter"></i></button>
                   <span class="action-icon" title="Analytics"><i class="fa-solid fa-chart-simple"></i></span>
                   <?php if (!$isProfile): ?><button class="action-icon archive-qr-code" type="button" title="Archive"><i class="fa-solid fa-ellipsis"></i></button><?php endif; ?>
                 </div>
@@ -359,5 +361,6 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
     });
   })();
   </script>
+  <script src="assets/js/x-share.js"></script>
 </body>
 </html>

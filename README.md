@@ -11,6 +11,9 @@ This project includes password reset and SMTP support. Follow these steps before
   - `GMAIL_USER`, `GMAIL_PASS`, `GMAIL_FROM` (or SMTP_* settings)
   - `NOWPAYMENTS_API_KEY`, `NOWPAYMENTS_IPN_SECRET`
   - `NOWPAYMENTS_PRICE_CURRENCY=NGN` (use a currency supported by your NOWPayments account)
+  - `GEMINI_API_KEY` and optional `GEMINI_MODEL` for AI page drafts
+  - `DEEPSEEK_API_KEY` and optional `DEEPSEEK_MODEL` for AI page drafts
+  - `AI_DEFAULT_PROVIDER=gemini`, `AI_MAX_PROMPT_LENGTH=3000`, and `AI_PAGE_GENERATION_COST=5`
 
 2. Composer dependencies
 - On the server (or locally before upload) run:
@@ -44,7 +47,15 @@ composer install --no-dev --prefer-dist
 8. Database migrations
 - The app will create needed tables on demand via helper functions. Review schema in `config.php`.
 
-9. Test
+9. API authentication
+- Each new account receives an API token during signup. It is shown once on the first page after signup; the database stores only its SHA-256 hash.
+- Create an account with `POST /api/signup.php` using JSON fields `name`, `email`, and `password`; `slug` is optional. A successful response is `201` and includes the one-time `api_token`.
+- Send it to `POST /api/short-links.php` or `POST /api/qr-codes.php` in the `Authorization: Bearer YOUR_TOKEN` header over HTTPS. API-token requests do not need a CSRF token.
+- If the token is lost, sign in and rotate it with `POST /api/token.php` using your session cookie and CSRF token. Rotating immediately invalidates the previous token.
+- `GET /api/token.php` reports whether a token exists. `DELETE /api/token.php` revokes it; both require a signed-in session and CSRF token for deletion.
+- Keep the token private.
+
+10. Test
 - Use the included `test_mail.php` to verify SMTP after config.
 
 If you want, I can prepare a `deploy.md` with step-by-step cPanel instructions.

@@ -98,6 +98,7 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
     .legend { display:flex; gap:16px; margin-top:12px; color:#666; font-size:12px; } .legend span:before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; } .legend .views:before { background:#b75356; } .legend .clicks:before { background:#1979bf; } .legend .scans:before { background:#0a9994; }
     .insights-list { display:grid; gap:12px; } .insight-row { display:flex; justify-content:space-between; gap:14px; align-items:center; padding-bottom:12px; border-bottom:1px solid #eee8e1; } .insight-row:last-child { border-bottom:0; padding-bottom:0; } .insight-row strong { display:block; font-size:14px; } .insight-row small { color:#888; display:block; margin-top:3px; overflow-wrap:anywhere; } .insight-value { font-weight:900; color:#001a38; white-space:nowrap; } .empty-insights { color:#888; font-size:13px; padding:10px 0; }
     .activity-list { display:grid; gap:0; } .activity-item { display:flex; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid #eee8e1; } .activity-item:last-child { border-bottom:0; } .activity-icon { width:32px; height:32px; display:grid; place-items:center; border-radius:9px; background:#f8e9e7; color:#b75356; flex:none; } .activity-item strong { font-size:13px; } .activity-item small { color:#888; display:block; margin-top:3px; }
+    .x-analytics-panel { margin-bottom:18px; } .x-analytics-head { display:flex; justify-content:space-between; gap:14px; align-items:start; } .x-analytics-head button { flex:none; } .x-post-row { display:flex; justify-content:space-between; gap:14px; padding:12px 0; border-bottom:1px solid #eee8e1; } .x-post-row:last-child { border-bottom:0; } .x-post-row p { margin:0; font-size:13px; line-height:1.45; overflow-wrap:anywhere; } .x-post-row small { display:block; color:#888; margin-top:5px; } .x-post-metrics { color:#001a38; font-size:12px; white-space:nowrap; }
     @media (max-width:900px) { .insights-grid { grid-template-columns:1fr; } }
     @media (max-width:560px) { .trend { gap:4px; } .trend-bar { width:30%; } .insights-panel { padding:17px; } }
   </style>
@@ -120,6 +121,7 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
       <div class="content">
         <?php if ($dbError): ?><div class="notice">Database connection is not available.</div><?php endif; ?>
         <div class="stats-row" aria-label="Insights summary"><div class="stat-card"><strong><?= number_format($totals['views']) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-regular fa-eye"></i></span>Total views</span></div><div class="stat-card"><strong><?= number_format($totals['clicks']) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-arrow-pointer"></i></span>Link clicks</span></div><div class="stat-card"><strong><?= number_format($totals['scans']) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-qrcode"></i></span>QR scans</span></div><div class="stat-card"><strong><?= e($rate) ?>%</strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-bullseye"></i></span>Action rate</span></div></div>
+        <section class="insights-panel x-analytics-panel" aria-labelledby="x-analytics-title"><div class="x-analytics-head"><div><h2 id="x-analytics-title">X post performance</h2><p id="x-analytics-status">Refresh recent posts from your connected X account.</p></div><button class="ghost-btn" type="button" id="x-analytics-refresh">Refresh X data</button></div><div id="x-analytics-list" class="insights-list"><div class="empty-insights">No X metrics loaded yet.</div></div></section>
         <div class="insights-grid">
           <section class="insights-panel"><h2>Activity over the last 7 days</h2><p>Compare attention with the actions it creates.</p><div class="trend"><?php foreach ($trend as $day => $values): ?><div class="trend-day"><div class="trend-bars"><span class="trend-bar views" style="height:<?= max(3, round(($values['views'] / $maxTrend) * 100)) ?>%" title="<?= e($values['views']) ?> views"></span><span class="trend-bar clicks" style="height:<?= max(3, round(($values['clicks'] / $maxTrend) * 100)) ?>%" title="<?= e($values['clicks']) ?> clicks"></span><span class="trend-bar scans" style="height:<?= max(3, round(($values['scans'] / $maxTrend) * 100)) ?>%" title="<?= e($values['scans']) ?> scans"></span></div><small><?= e(date('D', strtotime($day))) ?></small></div><?php endforeach; ?></div><div class="legend"><span class="views">Views</span><span class="clicks">Clicks</span><span class="scans">Scans</span></div></section>
           <section class="insights-panel"><h2>Top short links</h2><p>Links receiving the most clicks.</p><div class="insights-list"><?php if (!$topLinks): ?><div class="empty-insights">Your short-link performance will appear here.</div><?php else: foreach ($topLinks as $link): ?><div class="insight-row"><div><strong><?= e($link['title'] ?: $link['back_half']) ?></strong><small><?= e($link['back_half'] ? xinng_short_url($link['back_half']) : $link['destination_url']) ?></small></div><span class="insight-value"><?= number_format((int)$link['click_count']) ?></span></div><?php endforeach; endif; ?></div></section>
@@ -129,5 +131,37 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
       </div>
     </main>
   </div>
+  <script>
+    (function(){
+      const refresh = document.getElementById('x-analytics-refresh');
+      const status = document.getElementById('x-analytics-status');
+      const list = document.getElementById('x-analytics-list');
+      if (!refresh || !status || !list) return;
+      const number = value => Number(value || 0).toLocaleString();
+      function render(posts) {
+        list.textContent = '';
+        if (!posts.length) { list.innerHTML = '<div class="empty-insights">No recent posts were returned by X.</div>'; return; }
+        posts.forEach(post => {
+          const row = document.createElement('div'); row.className = 'x-post-row';
+          const copy = document.createElement('div');
+          const text = document.createElement('p'); text.textContent = post.post_text || '(No text)';
+          const date = document.createElement('small'); date.textContent = post.posted_at ? new Date(post.posted_at.replace(' ', 'T') + 'Z').toLocaleString() : 'Date unavailable';
+          copy.append(text, date);
+          const metrics = document.createElement('span'); metrics.className = 'x-post-metrics'; metrics.textContent = `${number(post.like_count)} likes · ${number(post.repost_count)} reposts · ${number(post.reply_count)} replies`;
+          row.append(copy, metrics); list.appendChild(row);
+        });
+      }
+      refresh.addEventListener('click', async () => {
+        refresh.disabled = true; status.textContent = 'Loading recent X posts...';
+        try {
+          const response = await fetch('api/x/analytics.php', { headers: { 'Accept': 'application/json' } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'X analytics could not be loaded.');
+          render(result.posts || []); status.textContent = `@${result.account.username} · Updated just now`;
+        } catch (error) { status.textContent = error.message; }
+        finally { refresh.disabled = false; }
+      });
+    })();
+  </script>
 </body>
 </html>

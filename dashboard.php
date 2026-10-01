@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/services/x/XAccountStore.php';
+use Xinng\X\XAccountStore;
 session_start();
 
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
@@ -57,11 +59,15 @@ $userEmail = '';
 $packages = xinng_credit_packages();
 $notifications = [];
 $unreadNotificationCount = 0;
+$xAccount = null;
+$xConfigured = X_CLIENT_ID !== '' && X_REDIRECT_URI !== '';
 
 if ($pdo) {
     xinng_ensure_short_link_tables($pdo);
     xinng_ensure_credit_tables($pdo);
     xinng_ensure_communication_tables($pdo);
+    xinng_ensure_x_account_tables($pdo);
+    $xAccount = (new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY))->find($user_id);
 
     $stmt = $pdo->prepare('SELECT id, slug, title, bio, profile_image_url, is_published FROM pages WHERE user_id = ? ORDER BY id ASC');
     $stmt->execute([$user_id]);
@@ -162,6 +168,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
           <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
           <a class="nav-item active" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
           <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
+          <a class="nav-item" href="ai_page.php"><span class="nav-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>AI Page Builder</a>
           <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
           <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-coins"></i></span>Credits</a>
           <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
@@ -220,6 +227,7 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
       </header>
 
       <div class="content">
+        <?php include __DIR__ . '/includes/api-token-notice.php'; ?>
         <div class="editor-column">
           <?php if ($dbError): ?>
             <div class="notice">Database connection is not available. The dashboard design is loaded, but live page data cannot be shown.</div>
@@ -240,6 +248,30 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
               <strong><?= number_format($creditBalance) ?></strong>
               <p>Save credits for short links, pages, QR codes, and campaign actions.</p>
               <a class="primary-btn" href="credits.php">Buy more credits</a>
+            </div>
+          </div>
+
+          <div class="credit-summary" id="x-account-connection" aria-label="X account connection">
+            <div class="credit-card">
+              <div class="credit-card-top">
+                <span class="credit-label">X account</span>
+                <span class="credit-status"><?= $xAccount ? 'Connected' : 'Not connected' ?></span>
+              </div>
+              <?php if ($xAccount): ?>
+                <strong>@<?= e($xAccount['username']) ?></strong>
+                <p><?= e($xAccount['display_name'] ?: 'Your X account is ready for publishing.') ?></p>
+                <a class="ghost-btn" href="pages.php"><span class="label-icon"><i class="fa-regular fa-file-lines"></i></span>Manage pages</a>
+                <label for="x-post-text">Post to X</label>
+                <textarea id="x-post-text" maxlength="280" rows="4" placeholder="Share an update from Xinng..."></textarea>
+                <div class="credit-card-top"><span class="credit-status" id="x-post-count">0 / 280</span><span class="credit-status" id="x-post-status" role="status"></span></div>
+                <button class="primary-btn" type="button" id="x-publish" data-csrf="<?= e(csrf_token()) ?>">Preview and publish</button>
+                <button class="ghost-btn" type="button" id="x-disconnect" data-csrf="<?= e(csrf_token()) ?>">Disconnect X</button>
+              <?php else: ?>
+                <strong>Connect X</strong>
+                <p><?= $xConfigured ? 'Connect your account to publish Xinng pages and creator results.' : 'X publishing is not configured yet. Add the X OAuth settings before connecting an account.' ?></p>
+                <a class="ghost-btn" href="pages.php"><span class="label-icon"><i class="fa-regular fa-file-lines"></i></span>View pages</a>
+                <?php if ($xConfigured): ?><a class="primary-btn" href="api/x/connect.php"><span class="label-icon"><i class="fa-brands fa-x-twitter"></i></span>Connect X account</a><?php else: ?><span class="dashboard-action-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> X connection unavailable</span><?php endif; ?>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -699,6 +731,63 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
         }
       });
     })();
+
+    const xDisconnect = document.getElementById('x-disconnect');
+    const xPostText = document.getElementById('x-post-text');
+    const xPublish = document.getElementById('x-publish');
+    const xPostCount = document.getElementById('x-post-count');
+    const xPostStatus = document.getElementById('x-post-status');
+    if (xPostText && xPostCount) {
+      xPostText.addEventListener('input', () => {
+        xPostCount.textContent = `${xPostText.value.length} / 280`;
+      });
+    }
+    if (xPublish) {
+      xPublish.addEventListener('click', async () => {
+        const text = xPostText.value.trim();
+        xPostStatus.textContent = '';
+        if (!text) { xPostStatus.textContent = 'Write a post first.'; return; }
+        if (!confirm('Publish this post to X now?')) return;
+        xPublish.disabled = true;
+        try {
+          const response = await fetch('api/x/publish.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': xPublish.dataset.csrf },
+            body: JSON.stringify({ text, confirm: true })
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'The post could not be published.');
+          xPostStatus.textContent = '';
+          const publishedLink = document.createElement('a');
+          publishedLink.href = result.post.url;
+          publishedLink.target = '_blank';
+          publishedLink.rel = 'noopener';
+          publishedLink.textContent = 'Published on X';
+          xPostStatus.appendChild(publishedLink);
+          xPostText.value = '';
+          xPostCount.textContent = '0 / 280';
+        } catch (error) {
+          xPostStatus.textContent = error.message;
+        } finally {
+          xPublish.disabled = false;
+        }
+      });
+    }
+    if (xDisconnect) {
+      xDisconnect.addEventListener('click', async () => {
+        if (!confirm('Disconnect this X account?')) return;
+        xDisconnect.disabled = true;
+        const response = await fetch('api/x/disconnect.php', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': xDisconnect.dataset.csrf }
+        });
+        if (response.ok) location.reload();
+        else {
+          xDisconnect.disabled = false;
+          alert('The X account could not be disconnected.');
+        }
+      });
+    }
   </script>
 </body>
 </html>

@@ -2,19 +2,33 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-
-$user_id = (int) $_SESSION['user_id'];
 $pdo = get_db_connection();
 if (!$pdo) {
 	http_response_code(500);
 	echo json_encode(['ok' => false, 'error' => 'db']);
 	exit;
+}
+
+xinng_ensure_api_token_table($pdo);
+$apiToken = xinng_request_bearer_token();
+$apiUserId = $apiToken !== null ? xinng_api_token_user_id($pdo, $apiToken) : null;
+if ($apiToken !== null && $apiUserId === null) {
+	http_response_code(401);
+	echo json_encode(['ok' => false, 'error' => 'auth']);
+	exit;
+}
+if ($apiToken === null) {
+	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+	if (empty($_SESSION['user_id'])) {
+		http_response_code(401);
+		echo json_encode(['ok' => false, 'error' => 'auth']);
+		exit;
+	}
+	$user_id = (int)$_SESSION['user_id'];
+	$sessionAuth = true;
+} else {
+	$user_id = $apiUserId;
+	$sessionAuth = false;
 }
 
 xinng_ensure_short_link_tables($pdo);
@@ -62,7 +76,7 @@ try {
 		exit;
 	}
 
-	if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
+	if ($sessionAuth && !verify_csrf_token($payload['csrf_token'] ?? null)) {
 		http_response_code(403);
 		echo json_encode(['ok' => false, 'error' => 'csrf']);
 		exit;
@@ -91,8 +105,9 @@ try {
 
 		$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 		$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
-		xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $pdo->lastInsertId());
-		$row = current_user_short_link($pdo, (int)$pdo->lastInsertId(), $user_id);
+		$shortLinkId = (int)$pdo->lastInsertId();
+		xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $shortLinkId);
+		$row = current_user_short_link($pdo, $shortLinkId, $user_id);
 		echo json_encode(['ok' => true, 'short_link' => short_link_row($row)]);
 		exit;
 	}
@@ -141,8 +156,9 @@ try {
 			}
 			$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 			$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
-			xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $pdo->lastInsertId());
-			$newRow = current_user_short_link($pdo, (int)$pdo->lastInsertId(), $user_id);
+			$shortLinkId = (int)$pdo->lastInsertId();
+			xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $shortLinkId);
+			$newRow = current_user_short_link($pdo, $shortLinkId, $user_id);
 			echo json_encode(['ok' => true, 'created_new' => true, 'short_link' => short_link_row($newRow)]);
 			exit;
 		}

@@ -66,6 +66,22 @@ $ADMIN_PASSWORD_HASH = '$2y$10$7uL.r0Qr52/V9OaMT03yXuVtCr4f1sW53orhjxiiHQxZw.7Uq
 // so links are generated with your live domain instead of localhost.
 $PUBLIC_URL = getenv('APP_URL') ?: getenv('PUBLIC_URL') ?: getenv('SITE_URL') ?: '';
 
+// AI page generation providers. Keys stay server-side and are never exposed to the browser.
+if (!defined('AI_DEFAULT_PROVIDER')) define('AI_DEFAULT_PROVIDER', strtolower(xinng_env('AI_DEFAULT_PROVIDER', 'gemini')));
+if (!defined('GEMINI_API_KEY')) define('GEMINI_API_KEY', xinng_env('GEMINI_API_KEY'));
+if (!defined('GEMINI_MODEL')) define('GEMINI_MODEL', xinng_env('GEMINI_MODEL', 'gemini-3.6-flash'));
+if (!defined('DEEPSEEK_API_KEY')) define('DEEPSEEK_API_KEY', xinng_env('DEEPSEEK_API_KEY'));
+if (!defined('DEEPSEEK_MODEL')) define('DEEPSEEK_MODEL', xinng_env('DEEPSEEK_MODEL', 'deepseek-chat'));
+if (!defined('AI_MAX_PROMPT_LENGTH')) define('AI_MAX_PROMPT_LENGTH', max(500, min(10000, (int)xinng_env('AI_MAX_PROMPT_LENGTH', '3000'))));
+if (!defined('AI_PAGE_GENERATION_COST')) define('AI_PAGE_GENERATION_COST', max(0, min(100, (int)xinng_env('AI_PAGE_GENERATION_COST', '5'))));
+
+// X API configuration. OAuth secrets and encryption keys remain server-side.
+if (!defined('X_CLIENT_ID')) define('X_CLIENT_ID', xinng_env('X_CLIENT_ID'));
+if (!defined('X_CLIENT_SECRET')) define('X_CLIENT_SECRET', xinng_env('X_CLIENT_SECRET'));
+if (!defined('X_REDIRECT_URI')) define('X_REDIRECT_URI', xinng_env('X_REDIRECT_URI', rtrim((string)($PUBLIC_URL ?: ''), '/') . '/api/x/callback.php'));
+if (!defined('X_TOKEN_ENCRYPTION_KEY')) define('X_TOKEN_ENCRYPTION_KEY', xinng_env('X_TOKEN_ENCRYPTION_KEY'));
+if (!defined('X_API_BEARER_TOKEN')) define('X_API_BEARER_TOKEN', xinng_env('X_API_BEARER_TOKEN'));
+
 // -------------------------
 // SMTP / Mailer configuration (optional)
 // By default prefer Gmail SMTP for local/dev testing; credentials are read from
@@ -244,6 +260,49 @@ function get_db_connection(): ?PDO {
 		return null;
 	}
 }
+
+function xinng_ensure_x_account_tables(PDO $pdo): void {
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS x_accounts (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL,
+			x_user_id VARCHAR(32) NOT NULL,
+			username VARCHAR(15) NOT NULL,
+			display_name VARCHAR(100) NULL,
+			profile_image_url TEXT NULL,
+			access_token_encrypted TEXT NOT NULL,
+			refresh_token_encrypted TEXT NULL,
+			token_expires_at DATETIME NULL,
+			scopes VARCHAR(500) NOT NULL,
+			connected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			UNIQUE KEY unique_user_x_account (user_id, x_user_id),
+			CONSTRAINT fk_x_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			INDEX idx_x_accounts_user_id (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+}
+
+function xinng_ensure_x_post_metric_tables(PDO $pdo): void {
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS x_post_metrics (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL,
+			x_post_id VARCHAR(32) NOT NULL,
+			post_text TEXT NOT NULL,
+			posted_at DATETIME NULL,
+			like_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			repost_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			reply_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			quote_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			impression_count BIGINT UNSIGNED NULL,
+			fetched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT fk_x_post_metrics_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			INDEX idx_x_post_metrics_user_fetched (user_id, fetched_at),
+			INDEX idx_x_post_metrics_post (user_id, x_post_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+}
 // -------------------------
 // Slug helper
 function slugify(string $s): ?string {
@@ -268,6 +327,39 @@ function verify_csrf_token(?string $token): bool {
 	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 	if (empty($token) || empty($_SESSION['_csrf_token'])) return false;
 	return hash_equals($_SESSION['_csrf_token'], $token);
+}
+
+function xinng_ensure_api_token_table(PDO $pdo): void {
+	$pdo->exec("CREATE TABLE IF NOT EXISTS api_tokens (
+		user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+		token_hash CHAR(64) NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT fk_api_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function xinng_issue_api_token(PDO $pdo, int $userId): string {
+	$token = 'xin_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+	$stmt = $pdo->prepare('INSERT INTO api_tokens (user_id, token_hash, created_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE token_hash = VALUES(token_hash), created_at = NOW()');
+	$stmt->execute([$userId, hash('sha256', $token)]);
+	return $token;
+}
+
+function xinng_request_bearer_token(): ?string {
+	$authorization = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+	if ($authorization === '' && function_exists('getallheaders')) {
+		$headers = getallheaders();
+		$authorization = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+	}
+	return preg_match('/^Bearer\s+([A-Za-z0-9_-]+)$/i', trim($authorization), $matches) ? $matches[1] : null;
+}
+
+function xinng_api_token_user_id(PDO $pdo, string $token): ?int {
+	xinng_ensure_api_token_table($pdo);
+	$stmt = $pdo->prepare('SELECT user_id FROM api_tokens WHERE token_hash = ? LIMIT 1');
+	$stmt->execute([hash('sha256', $token)]);
+	$userId = $stmt->fetchColumn();
+	return $userId !== false ? (int)$userId : null;
 }
 
 function xinng_reserved_back_halves(): array {

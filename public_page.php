@@ -41,6 +41,27 @@ if (!function_exists('public_social_icon')) {
 	}
 }
 
+if (!function_exists('public_block_icon')) {
+  function public_block_icon($type): string {
+    $icons = [
+      'link' => 'fa-solid fa-link',
+      'social' => 'fa-solid fa-share-nodes',
+      'image' => 'fa-regular fa-image',
+      'video' => 'fa-solid fa-play',
+      'youtube' => 'fa-brands fa-youtube',
+      'music' => 'fa-solid fa-music',
+      'shop' => 'fa-solid fa-bag-shopping',
+      'subscribe' => 'fa-regular fa-envelope',
+      'contact' => 'fa-regular fa-envelope',
+      'booking' => 'fa-regular fa-calendar',
+      'qr' => 'fa-solid fa-qrcode',
+      'short_link' => 'fa-solid fa-link',
+      'text' => 'fa-regular fa-file-lines',
+    ];
+    return '<i class="' . ($icons[$type] ?? 'fa-solid fa-arrow-up-right-from-square') . '" aria-hidden="true"></i>';
+  }
+}
+
 $page = is_array($page ?? null) ? $page : [];
 $blocks = is_array($blocks ?? null) ? $blocks : [];
 if (empty($pdo) && file_exists(__DIR__ . '/config.php')) {
@@ -86,8 +107,7 @@ $socials = array_values(array_filter($socials, static fn($social) => ($social['i
 $title = $page['title'] ?? $page['slug'] ?? '';
 $description = $page['description'] ?? ($page['bio'] ?? '');
 $pageType = ($page['page_type'] ?? 'creator') === 'corporate' ? 'corporate' : 'creator';
-// Treat a page as corporate if it's explicitly marked or it contains corporate metadata.
-$corporateMode = $pageType === 'corporate' || !empty($page['corporate_metadata'] ?? null);
+$corporateMode = $pageType === 'corporate';
 $profile = $page['profile_image_path'] ?? ($page['profile_image_url'] ?? '');
 
 $corporate = xinng_load_corporate_page_data($pdo, (int)$page['id'], $page);
@@ -225,7 +245,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     .corp-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0 14px; border-radius: 999px; background: rgba(59, 130, 246, .16); color: #bfdbfe; font-size: .95rem; font-weight: 700; }
     .corp-cta-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 24px; }
     .corp-social-row { display: flex; flex-wrap: wrap; gap: 12px; }
-    .corp-primary { display: inline-flex; align-items: center; gap: .6em; min-height: 46px; padding: 0 22px; border-radius: 999px; background: #3b82f6; color: #fff; font-size: .98rem; font-weight: 700; box-shadow: 0 18px 40px rgba(59, 130, 246, .24); transition: transform .2s ease, box-shadow .2s ease; }
+    .corp-primary { display: inline-flex; align-items: center; gap: .6em; min-height: 46px; padding: 0 22px; border: 0; border-radius: 999px; background: #3b82f6; color: #fff; opacity: 1; visibility: visible; font-size: .98rem; font-weight: 700; box-shadow: 0 18px 40px rgba(59, 130, 246, .24); transition: transform .2s ease, box-shadow .2s ease; }
     .corp-primary:hover { transform: translateY(-1px); box-shadow: 0 22px 45px rgba(59, 130, 246, .32); }
 
     .corp-event { color: #fff; }
@@ -258,7 +278,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     .corp-card-content strong { display: block; margin-bottom: 12px; font-size: 1.1rem; font-weight: 800; line-height: 1.25; }
     .corp-card-content p { margin: 0 0 18px; color: rgba(255, 255, 255, .92); font-size: .98rem; line-height: 1.8; }
     .corp-card-btn { display: inline-flex; align-items: center; gap: .5em; height: 38px; padding: 0 14px; border-radius: 999px; background: rgba(255, 255, 255, .16); color: #fff; font-size: .95rem; font-weight: 700; }
-    .corp-card--light .corp-card-btn { background: var(--corp-accent); color: #fff; }
+    .corp-card--light .corp-card-btn { background: #1979BF; color: #fff; }
 
     .corp-actions-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
     .corp-action-card { min-height: 180px; padding: 26px; border-radius: 24px; background: #0f243b; border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 18px 48px rgba(0, 0, 0, .18); transition: transform .2s ease, box-shadow .2s ease; }
@@ -531,10 +551,41 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     .pb-page { width: min(420px, 100%); min-height: 100vh; margin: 0 auto; text-align: center; }
     .pb-page .pb-header { width: 100%; }
     .pb-page .pb-content { padding-left: 16px; padding-right: 16px; }
+
+    .pb-public-body { min-height: 100%; overflow-x: hidden; overflow-y: auto; background: #f4f1ec; color: #292827; }
+    .pb-public-page { width: min(680px, calc(100% - 32px)); min-height: 100vh; padding: 28px 0 36px; text-align: center; }
+    .pb-public-page .pb-header { min-height: 190px; border-radius: 24px 24px 0 0; }
+    .pb-public-page .pb-content { padding: 82px 24px 30px; border-radius: 0 0 24px 24px; background: #fbfaf8; box-shadow: 0 18px 55px rgba(41,40,39,.08); }
+    .pb-public-page .pb-heading { display: grid; justify-items: center; gap: 8px; }
+    .pb-public-page .pb-heading h2 { margin: 0; color: #292827 !important; font-size: clamp(26px, 5vw, 36px); font-weight: 800; line-height: 1.12; letter-spacing: -.02em; overflow-wrap: anywhere; }
+    .pb-public-page .pb-handle { margin: 0; color: #8a8680 !important; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+    .pb-public-page .pb-content p { width: min(520px, 100%); max-width: none; margin: 12px auto 0; color: #716f6b !important; font-size: 15px; font-weight: 500; line-height: 1.7; overflow-wrap: anywhere; white-space: normal; }
+    .pb-public-page .pb-socials { margin: 20px 0 10px; gap: 8px; }
+    .pb-public-page .pb-socials span { width: 36px; height: 36px; border-color: #e1ded9; color: #57534e; background: #fff; }
+    .pb-public-page .pb-blocks { gap: 12px; margin-top: 24px; }
+    .pb-public-page .pb-block { position: relative; min-height: 62px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 15px 44px 15px 48px; border: 1px solid rgba(41,40,39,.08); border-radius: 12px; background: #fff !important; color: #292827 !important; box-shadow: 0 8px 20px rgba(41,40,39,.06); font-size: 14px; font-weight: 750; line-height: 1.35; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; overflow-wrap: anywhere; }
+    .pb-public-page .pb-block:hover { border-color: #c9a5a6; box-shadow: 0 12px 26px rgba(41,40,39,.1); transform: translateY(-2px); }
+    .pb-public-page .pb-block > i { position: absolute; left: 16px; color: #a44f52; font-size: 14px; }
+    .pb-public-page .pb-block:after { content: '\f054'; position: absolute; right: 16px; color: #aaa49d; font-family: 'Font Awesome 6 Free'; font-size: 11px; font-weight: 900; }
+    .pb-public-page .pb-block.text { display: block; padding: 18px 20px; text-align: left; color: #57534e !important; font-weight: 500; }
+    .pb-public-page .pb-block.text:after { display: none; }
+    .pb-public-page .pb-block.text > i { position: static; margin-right: 7px; color: #a44f52; }
+    .pb-public-page .pb-block strong { overflow-wrap: anywhere; }
+    .pb-public-page .pb-block small { display: block; margin-top: 5px; color: #716f6b; font-size: 12px; font-weight: 500; line-height: 1.5; }
+    .pb-public-page .pb-empty { padding: 22px; border: 1px dashed #c9c3bb; border-radius: 12px; color: #716f6b; background: #f7f5f2; font-size: 13px; font-weight: 500; }
+    .pb-public-page .pb-brand { margin-top: 30px; color: #96918a; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+    .pb-public-page .pb-brand .xinng-brand { opacity: .72; }
+    .pb-public-page a:focus-visible { outline: 3px solid rgba(164,79,82,.35); outline-offset: 3px; }
+    @media (max-width: 560px) {
+      .pb-public-page { width: min(100% - 20px, 680px); padding-top: 10px; }
+      .pb-public-page .pb-header { min-height: 150px; border-radius: 18px 18px 0 0; }
+      .pb-public-page .pb-content { padding: 72px 14px 24px; border-radius: 0 0 18px 18px; }
+      .pb-public-page .pb-block { padding-left: 42px; padding-right: 38px; }
+    }
   </style>
   <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/brand.css">
 </head>
-<body>
+<body class="pb-public-body">
 <?php
 $header = $page['header_mode'] ?? 'color';
 $headerStyle = 'background:' . ($page['header_color'] ?? '#26282C') . ';';
@@ -554,13 +605,16 @@ $shapeClass = 'shape-' . ($page['block_shape'] ?? 'rounded');
 $shadowClass = 'shadow-' . ($page['block_shadow'] ?? 'soft');
 $socialsHtml = implode('', array_map(static fn($social) => '<span>' . public_social_icon($social['platform'] ?? 'link') . '</span>', $socials));
 ?>
-  <main class="pb-page" style="<?= e($backgroundStyle) ?>font-family:<?= e($font) ?>;">
+  <main class="pb-page pb-public-page" style="<?= e($backgroundStyle) ?>font-family:<?= e($font) ?>;">
     <div class="pb-header layout-<?= e($page['layout'] ?? 'simple') ?>" style="<?= e($headerStyle) ?>">
       <div class="pb-avatar"><?php if ($profile): ?><img src="<?= e($profile) ?>" alt=""><?php else: ?><i class="fa-regular fa-image"></i><?php endif; ?></div>
     </div>
     <div class="pb-content">
-      <h2 style="color:<?= e($page['title_color'] ?? '#26282C') ?>"><?= e($title ?: 'Page title') ?></h2>
-      <p style="color:<?= e($page['description_color'] ?? '#26282C') ?>"><?= e($description ?: 'Your page description') ?></p>
+      <div class="pb-heading">
+        <h2 style="color:<?= e($page['title_color'] ?? '#26282C') ?>"><?= e($title ?: 'Page title') ?></h2>
+        <?php if (!empty($page['slug'])): ?><p class="pb-handle">@<?= e($page['slug']) ?></p><?php endif; ?>
+      </div>
+      <p class="pb-description" style="color:<?= e($page['description_color'] ?? '#26282C') ?>"><?= e($description ?: 'Your page description') ?></p>
       <?php if (($page['social_placement'] ?? 'top') !== 'bottom'): ?><div class="pb-socials style-<?= e($page['social_icon_style'] ?? 'original') ?>"><?= $socialsHtml ?></div><?php endif; ?>
       <div class="pb-blocks">
         <?php foreach ($blocks as $block):
@@ -569,8 +623,9 @@ $socialsHtml = implode('', array_map(static fn($social) => '<span>' . public_soc
           $style = 'color:' . $blockTextColor . ';background:' . $blockColor;
           $tag = $type === 'text' ? 'div' : 'a';
         ?>
-          <<?= $tag ?> class="pb-block <?= $type === 'image' ? 'image ' : '' ?><?= e($shapeClass) ?> <?= e($shadowClass) ?>" style="<?= e($style) ?>"<?= $tag === 'a' ? ' href="' . e($blockUrl) . '"' : '' ?>>
+          <<?= $tag ?> class="pb-block <?= $type === 'image' ? 'image ' : '' ?><?= e($shapeClass) ?> <?= e($shadowClass) ?>" style="<?= e($style) ?>"<?= $tag === 'a' ? ' href="' . e($blockUrl) . '" aria-label="' . e($block['title'] ?? 'Open link') . '"' : '' ?>>
             <?php if ($type === 'image' && !empty($block['image_path'])): ?><img src="<?= e($block['image_path']) ?>" alt=""><?php endif; ?>
+            <?= public_block_icon($type) ?>
             <strong><?= e($block['title'] ?? 'Link block') ?></strong>
             <?php if (!empty($block['description']) || in_array($type, ['qr', 'image'], true)): ?><small><?= e($block['description'] ?? '') ?></small><?php endif; ?>
           </<?= $tag ?>>

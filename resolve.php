@@ -47,7 +47,7 @@ $page = $stmt->fetch();
 if ($page) {
 	$_GET['slug'] = $back_half;
 	$blocks = [];
-	$stmtBlocks = $pdo->prepare('SELECT id, title, description, type, destination_url FROM page_blocks WHERE page_id = ? AND deleted_at IS NULL ORDER BY position ASC, id ASC');
+	$stmtBlocks = $pdo->prepare('SELECT id, title, description, type, destination_url, image_path, is_active FROM page_blocks WHERE page_id = ? AND deleted_at IS NULL ORDER BY position ASC, id ASC');
 	$stmtBlocks->execute([(int)$page['id']]);
 	$blocks = $stmtBlocks->fetchAll(PDO::FETCH_ASSOC) ?: [];
 	require __DIR__ . '/public_page.php';
