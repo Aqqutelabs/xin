@@ -64,7 +64,7 @@ $ADMIN_PASSWORD_HASH = '$2y$10$7uL.r0Qr52/V9OaMT03yXuVtCr4f1sW53orhjxiiHQxZw.7Uq
 // Leave blank to auto-detect current URL.
 // In production (including cPanel), prefer setting APP_URL or PUBLIC_URL in .env
 // so links are generated with your live domain instead of localhost.
-$PUBLIC_URL = getenv('APP_URL') ?: getenv('PUBLIC_URL') ?: getenv('SITE_URL') ?: '';
+$PUBLIC_URL = xinng_normalize_public_url(getenv('APP_URL') ?: getenv('PUBLIC_URL') ?: getenv('SITE_URL') ?: '');
 
 // AI page generation providers. Keys stay server-side and are never exposed to the browser.
 if (!defined('AI_DEFAULT_PROVIDER')) define('AI_DEFAULT_PROVIDER', strtolower(xinng_env('AI_DEFAULT_PROVIDER', 'gemini')));
@@ -253,6 +253,7 @@ function get_db_connection(): ?PDO {
 	];
 	try {
 		$pdo = new PDO($dsn, DB_USER, DB_PASS, $opts);
+		xinng_migrate_http_public_urls($pdo);
 		return $pdo;
 	} catch (PDOException $e) {
 		$GLOBALS['xinng_db_error'] = $e->getMessage();
@@ -381,22 +382,27 @@ function xinng_normalize_back_half(string $value): ?string {
 	return $value;
 }
 
+function xinng_normalize_public_url(string $value): string {
+	$value = trim((string)$value);
+	if ($value === '') return '';
+	$value = preg_replace('#/+$#', '', $value);
+	if ($value === '') return '';
+	if (!preg_match('#^https?://#i', $value)) {
+		$value = 'https://' . ltrim($value, '/');
+	}
+	$host = preg_replace('#^https?://#i', '', $value);
+	$host = preg_replace('#/.*$#', '', $host);
+	$isLocalHost = preg_match('/^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i', $host);
+	if (stripos($value, 'http://') === 0 && !$isLocalHost) {
+		$value = 'https://' . substr($value, 7);
+	}
+	return $value;
+}
+
 function xinng_public_base_url(): string {
 	global $PUBLIC_URL;
 	if (!empty($PUBLIC_URL)) {
-		$url = rtrim($PUBLIC_URL, '/');
-		if (!preg_match('#^https?://#i', $url)) {
-			$url = 'https://' . ltrim($url, '/');
-		}
-		if (stripos($url, 'http://') === 0) {
-			$host = preg_replace('#^http://#i', '', $url);
-			$host = preg_replace('#/.*$#', '', $host);
-			$isLocalHost = preg_match('/^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i', $host);
-			if (!$isLocalHost) {
-				$url = 'https://' . substr($url, 7);
-			}
-		}
-		return $url;
+		return rtrim(xinng_normalize_public_url($PUBLIC_URL), '/');
 	}
 	$scheme = 'http';
 	if (
@@ -419,6 +425,34 @@ function xinng_public_base_url(): string {
 		$basePath = $relative !== '' ? '/' . $relative : '';
 	}
 	return rtrim($scheme . '://' . $host . $basePath, '/');
+}
+
+function xinng_migrate_http_public_urls(PDO $pdo): void {
+	$base = xinng_public_base_url();
+	$host = preg_replace('#^https?://#i', '', $base);
+	$host = preg_replace('#/.*$#', '', $host);
+	if ($host === '') return;
+	$httpBase = 'http://' . $host;
+	$httpsBase = 'https://' . $host;
+	$tables = [
+		['qr_codes', 'destination_url'],
+		['short_links', 'destination_url'],
+		['qr_codes', 'qr_image_url'],
+	];
+	foreach ($tables as [$table, $column]) {
+		$stmt = $pdo->prepare("SELECT id, {$column} FROM {$table} WHERE {$column} LIKE ?");
+		$stmt->execute(['http://%']);
+		while ($row = $stmt->fetch()) {
+			$url = (string)($row[$column] ?? '');
+			if ($url === '') continue;
+			$normalized = preg_replace('#^http://#i', 'https://', $url);
+			if ($normalized === $url) continue;
+			if (stripos($normalized, $httpsBase) === 0 || stripos($normalized, 'https://') === 0) {
+				$up = $pdo->prepare("UPDATE {$table} SET {$column} = ? WHERE id = ?");
+				$up->execute([$normalized, (int)$row['id']]);
+			}
+		}
+	}
 }
 
 function xinng_short_url(string $back_half): string {
