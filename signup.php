@@ -2,7 +2,6 @@
 require_once __DIR__.'/config.php';
 session_start();
 $errors = [];
-$success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -143,10 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <p class="small">Create your account and make room for what you do.</p>
       </div>
 
-      <?php if ($success): ?>
-        <div class="notice" role="status">Account created. You can now <a href="signin.php">sign in</a>.</div>
-      <?php endif; ?>
-
       <?php foreach ($errors as $err): ?>
         <div class="error" role="alert"><?= htmlspecialchars($err) ?></div>
       <?php endforeach; ?>
@@ -200,6 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const input = document.getElementById('slug-input');
     const status = document.getElementById('slug-status');
     const submit = document.querySelector('button[type="submit"]');
+    if (!input || !status || !submit) return;
+
     let last = '';
     let timer = null;
     const reserved = ['login','signin','sign-in','register','signup','sign-up','dashboard','admin','api','settings','links','qr','qrcodes','insights','account','billing','support','help','logout','assets','data','uploads','includes','actions','controllers','page','pages','profile','profiles','u','l','tools','teleprompter','color-scheme'];

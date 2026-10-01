@@ -9,26 +9,9 @@ if (!$pdo) {
 	exit;
 }
 xinng_ensure_api_token_table($pdo);
-$apiToken = xinng_request_bearer_token();
-$apiUserId = $apiToken !== null ? xinng_api_token_user_id($pdo, $apiToken) : null;
-if ($apiToken !== null && $apiUserId === null) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-if ($apiToken === null) {
-	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-	if (empty($_SESSION['user_id'])) {
-		http_response_code(401);
-		echo json_encode(['ok' => false, 'error' => 'auth']);
-		exit;
-	}
-	$user_id = (int)$_SESSION['user_id'];
-	$sessionAuth = true;
-} else {
-	$user_id = $apiUserId;
-	$sessionAuth = false;
-}
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+$user_id = (int)($_SESSION['user_id'] ?? 0);
+$sessionAuth = $user_id > 0;
 xinng_ensure_short_link_tables($pdo);
 xinng_ensure_qr_code_tables($pdo);
 xinng_ensure_credit_tables($pdo);
@@ -190,12 +173,6 @@ try {
 		if ($profile) $rows[] = qr_row($profile);
 		foreach ($stmt->fetchAll() as $row) $rows[] = qr_row($row);
 		echo json_encode(['ok' => true, 'qr_codes' => $rows]);
-		exit;
-	}
-
-	if ($sessionAuth && !verify_csrf_token($payload['csrf_token'] ?? null)) {
-		http_response_code(403);
-		echo json_encode(['ok' => false, 'error' => 'csrf']);
 		exit;
 	}
 

@@ -10,26 +10,9 @@ if (!$pdo) {
 }
 
 xinng_ensure_api_token_table($pdo);
-$apiToken = xinng_request_bearer_token();
-$apiUserId = $apiToken !== null ? xinng_api_token_user_id($pdo, $apiToken) : null;
-if ($apiToken !== null && $apiUserId === null) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-if ($apiToken === null) {
-	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-	if (empty($_SESSION['user_id'])) {
-		http_response_code(401);
-		echo json_encode(['ok' => false, 'error' => 'auth']);
-		exit;
-	}
-	$user_id = (int)$_SESSION['user_id'];
-	$sessionAuth = true;
-} else {
-	$user_id = $apiUserId;
-	$sessionAuth = false;
-}
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+$user_id = (int)($_SESSION['user_id'] ?? 0);
+$sessionAuth = $user_id > 0;
 
 xinng_ensure_short_link_tables($pdo);
 xinng_ensure_credit_tables($pdo);
@@ -73,12 +56,6 @@ try {
 		$stmt = $pdo->prepare('SELECT id, title, destination_url, back_half, status, click_count, created_at, updated_at FROM short_links WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC');
 		$stmt->execute([$user_id]);
 		echo json_encode(['ok' => true, 'short_links' => array_map('short_link_row', $stmt->fetchAll())]);
-		exit;
-	}
-
-	if ($sessionAuth && !verify_csrf_token($payload['csrf_token'] ?? null)) {
-		http_response_code(403);
-		echo json_encode(['ok' => false, 'error' => 'csrf']);
 		exit;
 	}
 

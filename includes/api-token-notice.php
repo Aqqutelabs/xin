@@ -13,6 +13,11 @@ if ($newApiToken !== null):
   <span id="api-token-copy-status" role="status"></span>
 </section>
 <script>
+const apiTokenInput = document.getElementById('new-api-token');
+if (apiTokenInput && apiTokenInput.value) {
+  console.log('New API token:', apiTokenInput.value);
+}
+
 document.getElementById('copy-api-token')?.addEventListener('click', async function () {
   const input = document.getElementById('new-api-token');
   const status = document.getElementById('api-token-copy-status');
