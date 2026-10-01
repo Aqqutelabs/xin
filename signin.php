@@ -49,29 +49,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Sign in — <?= htmlspecialchars($APP_NAME) ?></title>
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/brand.css">
+  <link rel="stylesheet" href="assets/css/auth.css?v=<?= filemtime(__DIR__ . '/assets/css/auth.css') ?>">
 </head>
-<body>
+<body class="auth-page">
   <main class="auth-wrap">
-    <section class="auth-card">
+    <aside class="auth-story" aria-label="Welcome to Xinng">
+      <a href="index.php" class="auth-home">xin.ng <span aria-hidden="true">&nearr;</span></a>
+      <div class="auth-story-copy"><p class="auth-eyebrow">A PLACE FOR YOUR DIFFERENT SIDES</p><h2>Make yourself<br>at home.</h2><p>Your profile, your work, your next big idea.<br>Bring it all together with Xinng.</p></div>
+      <div class="auth-mascot"><img src="assets/images/drag-xinng/stare.png" alt="Xinng the dragon" width="1254" height="1254"></div>
+      <p class="auth-story-foot">One home. More possibilities.</p>
+    </aside>
+    <section class="auth-card" aria-labelledby="auth-title">
       <div class="auth-head">
         <a class="xinng-brand xinng-brand--auth" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
-        <h1>Sign in</h1>
-        <p class="small">Welcome back — sign in to manage your links.</p>
+        <h1 id="auth-title">Welcome back.</h1>
+        <p class="small">Sign in to pick up where you left off.</p>
       </div>
 
       <?php foreach ($errors as $err): ?>
-        <div class="error"><?= htmlspecialchars($err) ?></div>
+        <div class="error" role="alert"><?= htmlspecialchars($err) ?></div>
       <?php endforeach; ?>
 
       <form method="post" class="auth-form" novalidate>
-        <label>Email</label>
-        <input name="email" type="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+        <label for="auth-email">Email address</label>
+        <input id="auth-email" autocomplete="email" placeholder="you@example.com" name="email" type="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
 
-        <label>Password</label>
+        <label for="signin-password">Password</label>
         <div class="pw-wrap">
-          <input id="signin-password" name="password" type="password" required>
-          <button type="button" class="eye-toggle" data-target="signin-password" aria-label="Toggle password visibility">
+          <input id="signin-password" name="password" type="password" autocomplete="current-password" required>
+          <button type="button" class="eye-toggle" data-target="signin-password" aria-label="Show password" aria-pressed="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
@@ -96,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if(!target) return;
       btn.innerHTML = eye;
       btn.addEventListener('click', ()=>{
-        if(target.type === 'password'){ target.type = 'text'; btn.innerHTML = eyeOff; } else { target.type = 'password'; btn.innerHTML = eye; }
+        const show = target.type === 'password'; target.type = show ? 'text' : 'password'; btn.innerHTML = show ? eyeOff : eye; btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password'); btn.setAttribute('aria-pressed', String(show));
       });
     });
   })();
