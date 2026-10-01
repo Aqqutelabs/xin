@@ -434,16 +434,9 @@ try {
 		$title = trim((string)($payload['title'] ?? $defaults['title']));
 		if ($title === '') $title = $defaults['title'];
 		$slug = unique_page_slug($pdo, $payload['slug'] ?? ($title ?: 'page'));
-		$creditBalance = xinng_ensure_credit_balance($pdo, $user_id);
-		if ($creditBalance < 1) {
-			http_response_code(402);
-			echo json_encode(['ok' => false, 'error' => 'insufficient_credits']);
-			exit;
-		}
 		$stmt = $pdo->prepare('INSERT INTO pages (user_id, page_type, corporate_metadata, slug, title, description, bio, is_published, status, theme, layout, font, title_color, description_color, header_mode, header_color, background_mode, background_color, block_shape, block_shadow, block_color, block_text_color, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, "published", ?, ?, "system", "#26282C", "#26282C", "color", ?, "color", ?, "rounded", "soft", ?, ?, NOW(), NOW(), NOW())');
 		$stmt->execute([$user_id, $pageType, json_encode($defaults['corporate'] ?? [], JSON_UNESCAPED_SLASHES), $slug, $title, $defaults['description'], $defaults['description'], $defaults['theme'], $defaults['layout'], $defaults['header_color'], $defaults['background_color'], $defaults['block_color'], $defaults['block_text_color']]);
 		$id = (int)$pdo->lastInsertId();
-		xinng_charge_credits($pdo, $user_id, 1, 'Create page', 'page:' . $id);
 		if ($pageType === 'corporate') {
 			xinng_save_corporate_page_data($pdo, $id, $user_id, sanitize_corporate_metadata($defaults['corporate'] ?? []));
 		}
