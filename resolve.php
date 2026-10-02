@@ -1,7 +1,14 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-$back_half = xinng_normalize_back_half($_GET['back_half'] ?? '');
+$raw_back_half = (string)($_GET['back_half'] ?? '');
+if (!preg_match('/^[A-Za-z0-9_-]{3,64}$/D', $raw_back_half)) {
+	http_response_code(404);
+	echo 'Not found';
+	exit;
+}
+
+$back_half = xinng_normalize_back_half($raw_back_half);
 if ($back_half === null) {
 	http_response_code(404);
 	echo 'Not found';

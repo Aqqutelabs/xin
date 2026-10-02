@@ -10,9 +10,20 @@ if (!$pdo) {
 }
 
 xinng_ensure_api_token_table($pdo);
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-$user_id = (int)($_SESSION['user_id'] ?? 0);
-$sessionAuth = $user_id > 0;
+$bearerToken = xinng_request_bearer_token();
+if ($bearerToken !== null) {
+	$user_id = xinng_api_token_user_id($pdo, $bearerToken) ?? 0;
+	$sessionAuth = false;
+} else {
+	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+	$user_id = (int)($_SESSION['user_id'] ?? 0);
+	$sessionAuth = $user_id > 0;
+}
+if ($user_id <= 0) {
+	http_response_code(401);
+	echo json_encode(['ok' => false, 'error' => 'auth']);
+	exit;
+}
 
 xinng_ensure_short_link_tables($pdo);
 xinng_ensure_credit_tables($pdo);
@@ -49,6 +60,11 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = short_link_payload();
 if ($method === 'POST' && !empty($payload['_method'])) {
 	$method = strtoupper((string) $payload['_method']);
+}
+if ($sessionAuth && in_array($method, ['POST', 'PATCH', 'DELETE'], true) && !verify_csrf_token($payload['csrf_token'] ?? null)) {
+	http_response_code(403);
+	echo json_encode(['ok' => false, 'error' => 'csrf']);
+	exit;
 }
 
 try {

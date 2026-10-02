@@ -15,6 +15,10 @@ API tokens are issued to an Xinng account and shown once. Use the token for that
 
 Set `XINNG_API_BASE_URL` and `XINNG_API_TOKEN` in the integrating app's server-side environment. Do not hardcode either value in client code.
 
+Configure Xinng's `APP_URL` (or `PUBLIC_URL`) to the public HTTPS mount point used for short links. For an installation mounted at `/xinngqr`, for example, use `https://xin.ng/xinngqr`; the returned `full_short_url` will then have the form `https://xin.ng/xinngqr/<back_half>`.
+
+Visiting a short URL looks up its active `back_half` and responds with HTTP `302` and a `Location` header containing the exact stored `destination_url`. The redirect destination is never constructed from the slug.
+
 ## List links
 
 ```http
@@ -34,7 +38,7 @@ Successful response (`200`):
       "title": "Product page",
       "destination_url": "https://example.com/product",
       "back_half": "product",
-      "full_short_url": "https://your-xinng-domain.example/product",
+      "full_short_url": "https://xin.ng/xinngqr/product",
       "status": "active",
       "click_count": 0,
       "created_at": "2026-09-29 12:00:00",
@@ -70,7 +74,7 @@ Successful response (`200`):
     "title": "Product page",
     "destination_url": "https://example.com/product",
     "back_half": "product",
-    "full_short_url": "https://your-xinng-domain.example/product",
+    "full_short_url": "https://xin.ng/xinngqr/product",
     "status": "active",
     "click_count": 0,
     "created_at": "2026-09-29 12:00:00",
@@ -89,7 +93,7 @@ Persist the returned Xinng link ID and URL on the associated Nonagon resource (f
 
 Create the Xinng link only when a user explicitly generates or enables a QR for that resource. Do not create a link during page rendering, QR preview, or routine resource reads. On later visits, reuse the saved URL and render the QR from it; this must not call `POST` or spend another credit. If no saved link exists, show the explicit generate/enable action rather than creating one implicitly.
 
-Use a stable, publicly accessible Nonagon destination URL for the resource, such as its canonical request or certificate page URL. Prefer keeping that destination stable: changing it requires confirmation and creates a separate Xinng link for 1 credit, while the existing link and its analytics remain. After a confirmed change succeeds, save the newly returned link ID and URL for future QR renders. Do not replace the saved values if the create/update request fails.
+Use a stable, publicly accessible Nonagon destination URL for the resource. For equipment, that must be the public `equipment-public?token=...` URL, not the login-protected internal `equipment?id=...` page. Configure Nonagon's `APP_URL` to its own public HTTPS base so it generates that accessible URL; this is separate from Xinng's `APP_URL`, which controls the returned short-link host and mount path. Prefer keeping the destination stable: changing it requires confirmation and creates a separate Xinng link for 1 credit, while the existing link and its analytics remain. After a confirmed change succeeds, save the newly returned link ID and URL for future QR renders. Do not replace the saved values if the create/update request fails.
 
 Recommended lifecycle:
 
