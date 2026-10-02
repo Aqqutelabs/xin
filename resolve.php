@@ -36,7 +36,8 @@ if ($shortLink) {
 		$referer = $_SERVER['HTTP_REFERER'] ?? null;
 
 		$stmt = $pdo->prepare('INSERT INTO short_link_clicks (short_link_id, user_id, ip_hash, user_agent, referer, clicked_at) VALUES (?, ?, ?, ?, ?, NOW())');
-		$stmt->execute([(int)$shortLink['id'], (int)$shortLink['user_id'], $ipHash, $userAgent, $referer]);
+		$ownerId = $shortLink['user_id'] !== null ? (int)$shortLink['user_id'] : null;
+		$stmt->execute([(int)$shortLink['id'], $ownerId, $ipHash, $userAgent, $referer]);
 
 		$stmt = $pdo->prepare('UPDATE short_links SET click_count = click_count + 1, updated_at = NOW() WHERE id = ?');
 		$stmt->execute([(int)$shortLink['id']]);

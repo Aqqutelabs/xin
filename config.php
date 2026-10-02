@@ -666,7 +666,7 @@ function xinng_ensure_short_link_tables(PDO $pdo): void {
 	$pdo->exec("
 		CREATE TABLE IF NOT EXISTS short_links (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			user_id BIGINT UNSIGNED NOT NULL,
+			user_id BIGINT UNSIGNED NULL,
 			title VARCHAR(150) NOT NULL,
 			destination_url TEXT NOT NULL,
 			back_half VARCHAR(64) NOT NULL,
@@ -682,6 +682,11 @@ function xinng_ensure_short_link_tables(PDO $pdo): void {
 			INDEX idx_short_links_deleted_at (deleted_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	");
+
+	$userIdColumn = $pdo->query("SHOW COLUMNS FROM short_links LIKE 'user_id'")->fetch(PDO::FETCH_ASSOC);
+	if ($userIdColumn && strtoupper((string)$userIdColumn['Null']) !== 'YES') {
+		$pdo->exec('ALTER TABLE short_links MODIFY user_id BIGINT UNSIGNED NULL');
+	}
 
 	$pdo->exec("
 		CREATE TABLE IF NOT EXISTS short_link_clicks (
