@@ -961,6 +961,8 @@ function xinng_ensure_page_qr_code(PDO $pdo, int $user_id, int $page_id, string 
 }
 
 function xinng_qr_data_url_for_row(array $qr): string {
+	$backHalf = trim((string)($qr['back_half'] ?? ''));
+	if ($backHalf !== '') return xinng_short_url($backHalf);
 	$destination = trim((string)($qr['destination_url'] ?? ''));
 	if ($destination !== '') return $destination;
 	return xinng_qr_scan_url((int)($qr['id'] ?? 0));

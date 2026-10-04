@@ -141,7 +141,10 @@ function save_qr_data(PDO $pdo, int $user_id, array $payload, ?array $existing =
 	}
 
 	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
-	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $destination['url']), $id]);
+	$qrDataUrl = !empty($backHalf['back_half'])
+		? xinng_short_url($backHalf['back_half'])
+		: $destination['url'];
+	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $qrDataUrl), $id]);
 	return ['ok' => true, 'qr_code' => qr_row(current_qr($pdo, $id, $user_id))];
 }
 

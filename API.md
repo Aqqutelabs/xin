@@ -75,28 +75,74 @@ Short-link and QR-code API requests also accept a frontend/customer ID as a stri
 
 If no `user_id` is supplied, a browser session may be used when one exists; otherwise account-scoped endpoints return `422` with `missing_user_id`.
 
-## Test a short URL
+## Create a short link for an equipment page
 
-1. Send a `POST` request to `https://your-xin-domain.com/api/short-links.php` with `Content-Type: application/json`. Use the same customer ID from your frontend on every request for that customer. It can be a UUID/string ID; numeric IDs refer to existing Xin users. Choose an unused `back_half`:
+Send a `POST` request to `https://your-xin-domain.com/api/short-links.php` with `Content-Type: application/json`. Use the same customer ID from your frontend on every request for that customer. It can be a UUID/string ID; numeric IDs refer to existing Xin users. Choose an unused `back_half`:
 
    ```json
    {
      "user_id": "customer-uuid-from-your-system",
-     "title": "Test product",
-     "destination_url": "https://example.com/product",
-     "back_half": "test-product"
+     "title": "Equipment name",
+     "destination_url": "https://frontend.example.com/equipment/equipment-id",
+     "back_half": "equipment-name"
    }
    ```
 
-   When testing locally with XAMPP, the endpoint may be `http://localhost/xinngqr/api/short-links.php`.
+Replace `https://frontend.example.com/equipment/equipment-id` with the complete equipment page URL currently used by your frontend. Include the domain and full route. The backend stores and redirects to that exact URL; it does not assume a fixed Nonangon domain. If the frontend domain changes, send the new complete URL when creating the link.
 
-2. A successful response has `"ok": true`. Copy `short_link.full_short_url` from the response; it will be a Xin-domain URL, such as `https://your-xin-domain.com/test-product`.
+When testing locally with XAMPP, the endpoint may be `http://localhost/xinngqr/api/short-links.php`.
 
-3. Open that URL in a browser. It should redirect to the `destination_url` you submitted. The short link must be active and not archived.
+On success, the response includes `short_link.full_short_url`, the Xin URL to share:
 
-4. To check its click count, send `GET https://your-xin-domain.com/api/short-links.php?user_id=customer-uuid-from-your-system` and find the link in the response's `short_links` list. Its `click_count` should have increased after visiting the short URL.
+```json
+{
+  "ok": true,
+  "short_link": {
+    "id": 123,
+    "title": "Equipment name",
+    "destination_url": "https://frontend.example.com/equipment/equipment-id",
+    "back_half": "equipment-name",
+    "full_short_url": "https://your-xin-domain.com/equipment-name",
+    "status": "active",
+    "click_count": 0
+  }
+}
+```
 
-A missing or invalid ID returns `422` with `missing_user_id`.
+Opening `full_short_url` redirects to the saved `destination_url`. The link must be active and not archived. Each visit is recorded in its click count.
+
+To list the customer's short links and check click counts, send:
+
+```http
+GET https://your-xin-domain.com/api/short-links.php?user_id=customer-uuid-from-your-system
+Accept: application/json
+```
+
+Find the link in the `short_links` array. Its `click_count` increases after visits to the short URL. A missing account ID returns `422` with `missing_user_id`.
+
+## Create a QR code that uses the short link
+
+To have scans pass through Xin's short-link redirect (and track short-link clicks), create the QR code with the same `destination_url` and an unused `back_half`:
+
+```http
+POST https://your-xin-domain.com/api/qr-codes.php
+Content-Type: application/json
+Accept: application/json
+```
+
+```json
+{
+  "user_id": "customer-uuid-from-your-system",
+  "title": "Equipment name",
+  "type": "website",
+  "destination_url": "https://frontend.example.com/equipment/equipment-id",
+  "back_half": "equipment-name"
+}
+```
+
+Use the full, current equipment page URL for `destination_url`, just as for short-link creation. When `back_half` is supplied, the QR image encodes the Xin short URL (`https://your-xin-domain.com/equipment-name`), not the frontend destination. Scanning it opens Xin's resolver, which redirects to the saved destination URL. The response's `qr_code.full_short_url` gives the short URL and `qr_code.qr_image_url` gives the QR image URL.
+
+If you omit `back_half`, the QR code goes directly to `destination_url` and does not use the short-link redirect.
 
 ## API endpoints
 

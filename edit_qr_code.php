@@ -105,6 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				$bgColor = xinng_validate_hex_color($_POST['background_color'] ?? '#FFFFFF', '#FFFFFF');
 				$cornerColor = trim($_POST['corner_color'] ?? '') !== '' ? xinng_validate_hex_color($_POST['corner_color'], '#000000') : null;
 				$removeLogo = !empty($_POST['remove_xinng_logo']) ? 1 : 0;
+				$qrDataUrl = !empty($backHalf['back_half'])
+					? xinng_short_url($backHalf['back_half'])
+					: $destination['url'];
 				$stmt = $pdo->prepare('UPDATE qr_codes SET short_link_id = ?, type = ?, title = ?, name = ?, destination_url = ?, back_half = ?, code_color = ?, background_color = ?, corner_color = ?, pattern_style = ?, corner_style = ?, frame_style = ?, frame_text = ?, logo_path = ?, remove_xinng_logo = ?, qr_image_url = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
 				$stmt->execute([
 					$shortLinkId,
@@ -122,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 					trim($_POST['frame_text'] ?? '') ?: null,
 					$logoPath,
 					$removeLogo,
-					xinng_qr_image_url($id, $codeColor, $bgColor, $destination['url']),
+					xinng_qr_image_url($id, $codeColor, $bgColor, $qrDataUrl),
 					$id,
 					$user_id
 				]);
