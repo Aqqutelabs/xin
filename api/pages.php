@@ -2,14 +2,6 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-
-$user_id = (int)$_SESSION['user_id'];
 $pdo = get_db_connection();
 if (!$pdo) {
 	http_response_code(500);
@@ -389,6 +381,12 @@ function sanitize_corporate_metadata($raw): array {
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = pages_payload();
+$user_id = xinng_public_api_user_id($payload);
+if ($user_id <= 0) {
+	http_response_code(422);
+	echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+	exit;
+}
 $requestedPageType = $payload['page_type'] ?? $payload['pageType'] ?? $payload['type'] ?? 'creator';
 if ($method === 'POST' && !empty($payload['_method'])) $method = strtoupper((string)$payload['_method']);
 
@@ -418,12 +416,6 @@ try {
 		');
 		$stmt->execute([$user_id]);
 		echo json_encode(['ok' => true, 'pages' => $stmt->fetchAll()]);
-		exit;
-	}
-
-	if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
-		http_response_code(403);
-		echo json_encode(['ok' => false, 'error' => 'csrf']);
 		exit;
 	}
 

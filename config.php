@@ -330,6 +330,73 @@ function verify_csrf_token(?string $token): bool {
 	return hash_equals($_SESSION['_csrf_token'], $token);
 }
 
+function xinng_public_api_user_id(array $payload = []): int {
+	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+	$value = $payload['user_id']
+		?? $payload['account_id']
+		?? $_GET['user_id']
+		?? $_GET['account_id']
+		?? $_POST['user_id']
+		?? $_POST['account_id']
+		?? $_SESSION['user_id']
+		?? 0;
+	$userId = filter_var($value, FILTER_VALIDATE_INT);
+	return $userId !== false && $userId > 0 ? $userId : 0;
+}
+
+function xinng_public_api_account_user_id(PDO $pdo, array $payload = []): int {
+	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+	$value = $payload['user_id']
+		?? $payload['account_id']
+		?? $_GET['user_id']
+		?? $_GET['account_id']
+		?? $_POST['user_id']
+		?? $_POST['account_id']
+		?? $_SESSION['user_id']
+		?? 0;
+
+	if (is_int($value) || (is_string($value) && preg_match('/^[0-9]+$/D', $value))) {
+		$userId = filter_var($value, FILTER_VALIDATE_INT);
+		return $userId !== false && $userId > 0 ? $userId : 0;
+	}
+	if (!is_string($value)) return 0;
+	$externalId = trim($value);
+	if ($externalId === '' || strlen($externalId) > 191) return 0;
+
+	xinng_ensure_credit_tables($pdo);
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS api_external_accounts (
+			external_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT fk_api_external_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+	$stmt = $pdo->prepare('SELECT user_id FROM api_external_accounts WHERE external_id = ? LIMIT 1');
+	$stmt->execute([$externalId]);
+	$userId = $stmt->fetchColumn();
+	if ($userId !== false) return (int)$userId;
+
+	$email = 'external-' . hash('sha256', $externalId) . '@api.xinng.invalid';
+	try {
+		$pdo->beginTransaction();
+		$stmt = $pdo->prepare('INSERT INTO users (uuid, name, email, password_hash, created_at, updated_at) VALUES (UUID(), ?, ?, ?, NOW(), NOW())');
+		$stmt->execute(['External API account', $email, password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT)]);
+		$userId = (int)$pdo->lastInsertId();
+		$stmt = $pdo->prepare('INSERT INTO api_external_accounts (external_id, user_id) VALUES (?, ?)');
+		$stmt->execute([$externalId, $userId]);
+		$pdo->commit();
+		return $userId;
+	} catch (PDOException $error) {
+		if ($pdo->inTransaction()) $pdo->rollBack();
+		$stmt = $pdo->prepare('SELECT user_id FROM api_external_accounts WHERE external_id = ? LIMIT 1');
+		$stmt->execute([$externalId]);
+		$userId = $stmt->fetchColumn();
+		if ($userId !== false) return (int)$userId;
+		throw $error;
+	}
+}
+
 function xinng_ensure_api_token_table(PDO $pdo): void {
 	$pdo->exec("CREATE TABLE IF NOT EXISTS api_tokens (
 		user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,

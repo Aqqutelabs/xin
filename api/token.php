@@ -2,13 +2,6 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-
 $pdo = get_db_connection();
 if (!$pdo) {
 	http_response_code(500);
@@ -16,10 +9,15 @@ if (!$pdo) {
 	exit;
 }
 xinng_ensure_api_token_table($pdo);
-$userId = (int)$_SESSION['user_id'];
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = json_decode(file_get_contents('php://input'), true);
 if (!is_array($payload)) $payload = $_POST;
+$userId = xinng_public_api_user_id($payload);
+if ($userId <= 0) {
+	http_response_code(422);
+	echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+	exit;
+}
 
 if ($method === 'GET') {
 	$stmt = $pdo->prepare('SELECT created_at FROM api_tokens WHERE user_id = ? LIMIT 1');
@@ -34,12 +32,6 @@ if (!in_array($method, ['POST', 'DELETE'], true)) {
 	echo json_encode(['ok' => false, 'error' => 'method_not_allowed']);
 	exit;
 }
-if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
-	http_response_code(403);
-	echo json_encode(['ok' => false, 'error' => 'csrf']);
-	exit;
-}
-
 if ($method === 'DELETE') {
 	$stmt = $pdo->prepare('DELETE FROM api_tokens WHERE user_id = ?');
 	$stmt->execute([$userId]);

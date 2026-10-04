@@ -45,34 +45,22 @@ if ($method === 'POST' && !empty($payload['_method'])) {
 	$method = strtoupper((string) $payload['_method']);
 }
 
-$user_id = 0;
-$sessionAuth = false;
-$authenticated = false;
-$bearerToken = xinng_request_bearer_token();
-if ($bearerToken !== null) {
-	$tokenUserId = xinng_api_token_user_id($pdo, $bearerToken);
-	if ($tokenUserId !== null) {
-		$user_id = $tokenUserId;
-		$authenticated = true;
-	}
-} else {
-	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-	$user_id = (int)($_SESSION['user_id'] ?? 0);
-	$sessionAuth = $user_id > 0;
-	$authenticated = $sessionAuth;
-}
-if (!$authenticated && $method !== 'POST') {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-if ($sessionAuth && in_array($method, ['POST', 'PATCH', 'DELETE'], true) && !verify_csrf_token($payload['csrf_token'] ?? null)) {
-	http_response_code(403);
-	echo json_encode(['ok' => false, 'error' => 'csrf']);
-	exit;
-}
-
 try {
+	$user_id = xinng_public_api_account_user_id($pdo, $payload);
+	if ($user_id <= 0) {
+		http_response_code(422);
+		echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+		exit;
+	}
+
+	$stmt = $pdo->prepare('SELECT 1 FROM users WHERE id = ? LIMIT 1');
+	$stmt->execute([$user_id]);
+	if (!$stmt->fetchColumn()) {
+		http_response_code(404);
+		echo json_encode(['ok' => false, 'error' => 'user_not_found']);
+		exit;
+	}
+
 	if ($method === 'GET') {
 		$stmt = $pdo->prepare('SELECT id, title, destination_url, back_half, status, click_count, created_at, updated_at FROM short_links WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC');
 		$stmt->execute([$user_id]);
@@ -96,9 +84,8 @@ try {
 		}
 		if ($title === '') $title = $backHalf['back_half'];
 
-		$linkOwnerId = $authenticated ? $user_id : null;
 		$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
-		$stmt->execute([$linkOwnerId, $title, $destination['url'], $backHalf['back_half']]);
+		$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
 		$shortLinkId = (int)$pdo->lastInsertId();
 		$stmt = $pdo->prepare('SELECT * FROM short_links WHERE id = ? AND deleted_at IS NULL LIMIT 1');
 		$stmt->execute([$shortLinkId]);

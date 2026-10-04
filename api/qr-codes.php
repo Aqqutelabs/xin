@@ -9,8 +9,7 @@ if (!$pdo) {
 	exit;
 }
 xinng_ensure_api_token_table($pdo);
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-$user_id = (int)($_SESSION['user_id'] ?? 0);
+$user_id = 0;
 $sessionAuth = $user_id > 0;
 xinng_ensure_short_link_tables($pdo);
 xinng_ensure_qr_code_tables($pdo);
@@ -151,6 +150,20 @@ $payload = qr_payload();
 if ($method === 'POST' && !empty($payload['_method'])) $method = strtoupper((string)$payload['_method']);
 
 try {
+	$user_id = xinng_public_api_account_user_id($pdo, $payload);
+	if ($user_id <= 0) {
+		http_response_code(422);
+		echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+		exit;
+	}
+	$stmt = $pdo->prepare('SELECT 1 FROM users WHERE id = ? LIMIT 1');
+	$stmt->execute([$user_id]);
+	if (!$stmt->fetchColumn()) {
+		http_response_code(404);
+		echo json_encode(['ok' => false, 'error' => 'user_not_found']);
+		exit;
+	}
+
 	if ($method === 'GET') {
 		$id = (int)($_GET['id'] ?? 0);
 		if ($id > 0) {

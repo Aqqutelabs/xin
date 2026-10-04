@@ -21,12 +21,10 @@ function x_publish_error(int $status, string $message): never
 }
 
 session_start();
-if (empty($_SESSION['user_id'])) x_publish_error(401, 'Sign in required.');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Allow: POST');
     x_publish_error(405, 'Use POST.');
 }
-if (!verify_csrf_token($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) x_publish_error(403, 'Invalid CSRF token.');
 if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 8192) x_publish_error(413, 'Post request too large.');
 $raw = file_get_contents('php://input', false, null, 0, 8193);
 if (!is_string($raw) || strlen($raw) > 8192) x_publish_error(413, 'Post request too large.');
@@ -35,20 +33,22 @@ try {
     if (!is_array($body) || ($body['confirm'] ?? false) !== true || !is_string($body['text'] ?? null)) {
         x_publish_error(422, 'Confirm the post and provide its text.');
     }
+    $userId = xinng_public_api_user_id($body);
+    if ($userId <= 0) x_publish_error(422, 'Provide a user_id.');
     $pdo = get_db_connection();
     if (!$pdo) x_publish_error(503, 'Database unavailable.');
     xinng_ensure_x_account_tables($pdo);
     $store = new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY);
-    $token = $store->accessToken((int)$_SESSION['user_id']);
-    if ($token === null) x_publish_error(401, 'Connect an X account first.');
+    $token = $store->accessToken($userId);
+    if ($token === null) x_publish_error(409, 'Connect an X account first.');
     try {
         $post = (new XPostService())->publish($token, $body['text']);
     } catch (XApiException $error) {
         if ($error->status !== 401) throw $error;
-        $refreshToken = $store->refreshToken((int)$_SESSION['user_id']);
+        $refreshToken = $store->refreshToken($userId);
         if ($refreshToken === null) throw $error;
         $tokens = (new XOAuthService(X_CLIENT_ID, X_CLIENT_SECRET, X_REDIRECT_URI))->refreshAccessToken($refreshToken);
-        $store->updateTokens((int)$_SESSION['user_id'], $tokens);
+        $store->updateTokens($userId, $tokens);
         $post = (new XPostService())->publish((string)($tokens['access_token'] ?? ''), $body['text']);
     }
     echo json_encode(['ok' => true, 'post' => [

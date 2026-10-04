@@ -4,12 +4,6 @@ require_once __DIR__ . '/../services/ai/AiPageGenerator.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['ok' => false, 'error' => 'auth']);
-    exit;
-}
 if (($_SERVER['REQUEST_METHOD'] ?? 'POST') !== 'POST') {
     http_response_code(405);
     echo json_encode(['ok' => false, 'error' => 'method_not_allowed']);
@@ -18,13 +12,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'POST') !== 'POST') {
 
 $payload = json_decode(file_get_contents('php://input'), true);
 if (!is_array($payload)) $payload = $_POST;
-if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'csrf']);
+$userId = xinng_public_api_user_id($payload);
+if ($userId <= 0) {
+    http_response_code(422);
+    echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
     exit;
 }
-
-$userId = (int)$_SESSION['user_id'];
 $pageId = (int)($payload['page_id'] ?? 0);
 $prompt = trim((string)($payload['prompt'] ?? ''));
 $provider = strtolower(trim((string)($payload['provider'] ?? AI_DEFAULT_PROVIDER)));

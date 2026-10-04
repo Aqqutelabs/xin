@@ -14,13 +14,14 @@ $fail = static function (string $message, int $status = 400): never {
     echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
     exit;
 };
-if (empty($_SESSION['user_id'])) $fail('Your X connection session has expired. Sign in and try again.', 401);
+$userId = (int)($_SESSION['x_oauth_user_id'] ?? 0);
 $state = (string)($_GET['state'] ?? '');
 $expectedState = (string)($_SESSION['x_oauth_state'] ?? '');
 $verifier = (string)($_SESSION['x_oauth_verifier'] ?? '');
 $startedAt = (int)($_SESSION['x_oauth_started_at'] ?? 0);
-unset($_SESSION['x_oauth_state'], $_SESSION['x_oauth_verifier'], $_SESSION['x_oauth_started_at']);
+unset($_SESSION['x_oauth_state'], $_SESSION['x_oauth_verifier'], $_SESSION['x_oauth_started_at'], $_SESSION['x_oauth_user_id']);
 if ($expectedState === '' || $state === '' || !hash_equals($expectedState, $state) || $startedAt < time() - 600) $fail('The X authorization request expired. Start again.');
+if ($userId <= 0) $fail('The X connection request has no valid user_id.');
 if (isset($_GET['error'])) $fail('X authorization was cancelled.');
 $code = (string)($_GET['code'] ?? '');
 if ($code === '') $fail('X did not return an authorization code.');
@@ -31,7 +32,7 @@ try {
     $pdo = get_db_connection();
     if (!$pdo) $fail('The account could not be saved because the database is unavailable.', 503);
     xinng_ensure_x_account_tables($pdo);
-    (new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY))->save((int)$_SESSION['user_id'], $account, $tokens);
+    (new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY))->save($userId, $account, $tokens);
     header('Location: ../../dashboard.php?x_connected=1', true, 302);
     exit;
 } catch (XApiException $error) {

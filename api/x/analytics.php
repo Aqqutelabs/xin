@@ -21,22 +21,22 @@ function x_analytics_error(int $status, string $message): never
 }
 
 session_start();
-if (empty($_SESSION['user_id'])) x_analytics_error(401, 'Sign in required.');
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     header('Allow: GET');
     x_analytics_error(405, 'Use GET.');
 }
 $pdo = get_db_connection();
 if (!$pdo) x_analytics_error(503, 'Database unavailable.');
-$userId = (int)$_SESSION['user_id'];
+$userId = xinng_public_api_user_id();
+if ($userId <= 0) x_analytics_error(422, 'Provide a user_id.');
 try {
     xinng_ensure_x_account_tables($pdo);
     xinng_ensure_x_post_metric_tables($pdo);
     $accounts = new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY);
     $account = $accounts->find($userId);
-    if (!$account) x_analytics_error(401, 'Connect an X account first.');
+    if (!$account) x_analytics_error(409, 'Connect an X account first.');
     $token = $accounts->accessToken($userId);
-    if ($token === null) x_analytics_error(401, 'Connect an X account first.');
+    if ($token === null) x_analytics_error(409, 'Connect an X account first.');
     $oauth = new XOAuthService(X_CLIENT_ID, X_CLIENT_SECRET, X_REDIRECT_URI);
     try {
         $posts = $oauth->recentPosts($token, (string)$account['x_user_id']);

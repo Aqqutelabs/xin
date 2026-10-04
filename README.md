@@ -47,13 +47,10 @@ composer install --no-dev --prefer-dist
 8. Database migrations
 - The app will create needed tables on demand via helper functions. Review schema in `config.php`.
 
-9. API authentication
-- Each new account receives an API token during signup. It is shown once on the first page after signup; the database stores only its SHA-256 hash.
-- Create an account with `POST /api/signup.php` using JSON fields `name`, `email`, and `password`; `slug` is optional. A successful response is `201` and includes the one-time `api_token`.
-- Send it to `POST /api/short-links.php` or `POST /api/qr-codes.php` in the `Authorization: Bearer YOUR_TOKEN` header over HTTPS. API-token requests do not need a CSRF token.
-- If the token is lost, sign in and rotate it with `POST /api/token.php` using your session cookie and CSRF token. Rotating immediately invalidates the previous token.
-- `GET /api/token.php` reports whether a token exists. `DELETE /api/token.php` revokes it; both require a signed-in session and CSRF token for deletion.
-- Keep the token private.
+9. API access
+- API endpoints do not require authentication or CSRF tokens. Account-scoped requests accept `user_id` (or `account_id`) in the query string or JSON body.
+- The API does not verify account ownership: callers can access and modify data for any supplied user ID. Do not expose these endpoints to untrusted clients.
+- Create an account with `POST /api/signup.php` using JSON fields `name`, `email`, and `password`; `slug` is optional. A successful response is `201` and includes an API token, but API access does not require that token.
 
 10. Test
 - Use the included `test_mail.php` to verify SMTP after config.
