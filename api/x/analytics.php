@@ -2,13 +2,13 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../services/x/XAccountStore.php';
-require_once __DIR__ . '/../../services/x/XOAuthService.php';
+require_once __DIR__ . '/../../services/x/TwitterApiIoService.php';
 require_once __DIR__ . '/../../services/x/XAnalyticsStore.php';
 
 use Xinng\X\XAccountStore;
 use Xinng\X\XAnalyticsStore;
 use Xinng\X\XApiException;
-use Xinng\X\XOAuthService;
+use Xinng\X\TwitterApiIoService;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -35,19 +35,8 @@ try {
     $accounts = new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY);
     $account = $accounts->find($userId);
     if (!$account) x_analytics_error(409, 'Connect an X account first.');
-    $token = $accounts->accessToken($userId);
-    if ($token === null) x_analytics_error(409, 'Connect an X account first.');
-    $oauth = new XOAuthService(X_CLIENT_ID, X_CLIENT_SECRET, X_REDIRECT_URI);
-    try {
-        $posts = $oauth->recentPosts($token, (string)$account['x_user_id']);
-    } catch (XApiException $error) {
-        if ($error->status !== 401) throw $error;
-        $refreshToken = $accounts->refreshToken($userId);
-        if ($refreshToken === null) throw $error;
-        $tokens = $oauth->refreshAccessToken($refreshToken);
-        $accounts->updateTokens($userId, $tokens);
-        $posts = $oauth->recentPosts((string)($tokens['access_token'] ?? ''), (string)$account['x_user_id']);
-    }
+    if ($accounts->sessionCookie($userId) === null) x_analytics_error(409, 'Connect an X account first.');
+    $posts = (new TwitterApiIoService(TWITTERAPI_IO_API_KEY))->recentPosts((string)$account['x_user_id']);
     $analytics = new XAnalyticsStore($pdo);
     $analytics->savePosts($userId, $posts);
     echo json_encode(['ok' => true, 'account' => [

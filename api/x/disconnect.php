@@ -8,6 +8,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 session_start();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Allow: POST'); http_response_code(405); echo json_encode(['error' => 'Use POST.']); exit; }
+if (!verify_csrf_token(is_string($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null) ? $_SERVER['HTTP_X_CSRF_TOKEN'] : null)) { http_response_code(403); echo json_encode(['error' => 'csrf']); exit; }
 $payload = json_decode(file_get_contents('php://input'), true);
 if (!is_array($payload)) $payload = $_POST;
 $userId = xinng_public_api_user_id($payload);

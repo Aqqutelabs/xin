@@ -2,13 +2,11 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../services/x/XAccountStore.php';
-require_once __DIR__ . '/../../services/x/XOAuthService.php';
-require_once __DIR__ . '/../../services/x/XPostService.php';
+require_once __DIR__ . '/../../services/x/TwitterApiIoService.php';
 
 use Xinng\X\XAccountStore;
 use Xinng\X\XApiException;
-use Xinng\X\XOAuthService;
-use Xinng\X\XPostService;
+use Xinng\X\TwitterApiIoService;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -33,24 +31,19 @@ try {
     if (!is_array($body) || ($body['confirm'] ?? false) !== true || !is_string($body['text'] ?? null)) {
         x_publish_error(422, 'Confirm the post and provide its text.');
     }
+    if (!verify_csrf_token(is_string($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null) ? $_SERVER['HTTP_X_CSRF_TOKEN'] : null)) {
+        x_publish_error(403, 'The request expired. Reload the dashboard and try again.');
+    }
     $userId = xinng_public_api_user_id($body);
     if ($userId <= 0) x_publish_error(422, 'Provide a user_id.');
     $pdo = get_db_connection();
     if (!$pdo) x_publish_error(503, 'Database unavailable.');
     xinng_ensure_x_account_tables($pdo);
     $store = new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY);
-    $token = $store->accessToken($userId);
-    if ($token === null) x_publish_error(409, 'Connect an X account first.');
-    try {
-        $post = (new XPostService())->publish($token, $body['text']);
-    } catch (XApiException $error) {
-        if ($error->status !== 401) throw $error;
-        $refreshToken = $store->refreshToken($userId);
-        if ($refreshToken === null) throw $error;
-        $tokens = (new XOAuthService(X_CLIENT_ID, X_CLIENT_SECRET, X_REDIRECT_URI))->refreshAccessToken($refreshToken);
-        $store->updateTokens($userId, $tokens);
-        $post = (new XPostService())->publish((string)($tokens['access_token'] ?? ''), $body['text']);
-    }
+    $loginCookie = $store->sessionCookie($userId);
+    $proxy = $store->proxy($userId);
+    if ($loginCookie === null || $proxy === null) x_publish_error(409, 'Connect an X account first.');
+    $post = (new TwitterApiIoService(TWITTERAPI_IO_API_KEY))->publish($loginCookie, $proxy, $body['text']);
     echo json_encode(['ok' => true, 'post' => [
         'id' => $post['id'],
         'url' => 'https://x.com/i/status/' . rawurlencode($post['id']),

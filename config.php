@@ -80,6 +80,7 @@ if (!defined('X_CLIENT_ID')) define('X_CLIENT_ID', xinng_env('X_CLIENT_ID'));
 if (!defined('X_CLIENT_SECRET')) define('X_CLIENT_SECRET', xinng_env('X_CLIENT_SECRET'));
 if (!defined('X_REDIRECT_URI')) define('X_REDIRECT_URI', xinng_env('X_REDIRECT_URI', rtrim((string)($PUBLIC_URL ?: ''), '/') . '/api/x/callback.php'));
 if (!defined('X_TOKEN_ENCRYPTION_KEY')) define('X_TOKEN_ENCRYPTION_KEY', xinng_env('X_TOKEN_ENCRYPTION_KEY'));
+if (!defined('TWITTERAPI_IO_API_KEY')) define('TWITTERAPI_IO_API_KEY', xinng_env('TWITTERAPI_IO_API_KEY'));
 if (!defined('X_API_BEARER_TOKEN')) define('X_API_BEARER_TOKEN', xinng_env('X_API_BEARER_TOKEN'));
 
 // -------------------------

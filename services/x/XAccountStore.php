@@ -7,20 +7,14 @@ final class XAccountStore
 {
     public function __construct(private \PDO $pdo, private string $encryptionKey) {}
 
-    public function save(int $userId, array $account, array $tokens): void
+    public function save(int $userId, array $account, string $loginCookie, string $proxy): void
     {
-        if ($userId <= 0) throw new XApiException(422, 'A valid user_id is required.');
+        if ($userId <= 0 || $loginCookie === '' || $proxy === '') {
+            throw new XApiException(422, 'A valid user and complete TwitterAPI.io session are required.');
+        }
         $xUserId = (string)($account['x_user_id'] ?? '');
         $username = (string)($account['username'] ?? '');
-        $accessToken = (string)($tokens['access_token'] ?? '');
-        if ($xUserId === '' || $username === '' || $accessToken === '') {
-            throw new XApiException(502, 'X did not return complete account credentials.');
-        }
-
-        $expiresAt = isset($tokens['expires_in']) && is_numeric($tokens['expires_in'])
-            ? gmdate('Y-m-d H:i:s', time() + max(0, (int)$tokens['expires_in']))
-            : null;
-        $scopes = (string)($tokens['scope'] ?? '');
+        if ($xUserId === '' || $username === '') throw new XApiException(502, 'TwitterAPI.io returned incomplete X account details.');
         $sql = 'INSERT INTO x_accounts (user_id, x_user_id, username, display_name, profile_image_url, access_token_encrypted, refresh_token_encrypted, token_expires_at, scopes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE username = VALUES(username), display_name = VALUES(display_name), profile_image_url = VALUES(profile_image_url), access_token_encrypted = VALUES(access_token_encrypted), refresh_token_encrypted = VALUES(refresh_token_encrypted), token_expires_at = VALUES(token_expires_at), scopes = VALUES(scopes), updated_at = CURRENT_TIMESTAMP';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
@@ -29,49 +23,29 @@ final class XAccountStore
             $username,
             $account['display_name'] ?? null,
             $account['profile_image_url'] ?? null,
-            $this->encrypt($accessToken),
-            isset($tokens['refresh_token']) && $tokens['refresh_token'] !== ''
-                ? $this->encrypt((string)$tokens['refresh_token'])
-                : null,
-            $expiresAt,
-            $scopes,
+            $this->encrypt($loginCookie),
+            $this->encrypt($proxy),
+            null,
+            'twitterapi.io',
         ]);
     }
 
     public function find(int $userId): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, x_user_id, username, display_name, profile_image_url, token_expires_at, scopes, connected_at, updated_at FROM x_accounts WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+        $stmt = $this->pdo->prepare("SELECT id, x_user_id, username, display_name, profile_image_url, token_expires_at, scopes, connected_at, updated_at FROM x_accounts WHERE user_id = ? AND scopes = 'twitterapi.io' ORDER BY id DESC LIMIT 1");
         $stmt->execute([$userId]);
         $account = $stmt->fetch(\PDO::FETCH_ASSOC);
         return is_array($account) ? $account : null;
     }
 
-    public function accessToken(int $userId): ?string
+    public function sessionCookie(int $userId): ?string
     {
-        return $this->storedToken($userId, 'access_token_encrypted');
+        return $this->storedSecret($userId, 'access_token_encrypted');
     }
 
-    public function refreshToken(int $userId): ?string
+    public function proxy(int $userId): ?string
     {
-        return $this->storedToken($userId, 'refresh_token_encrypted');
-    }
-
-    public function updateTokens(int $userId, array $tokens): void
-    {
-        $accessToken = (string)($tokens['access_token'] ?? '');
-        if ($userId <= 0 || $accessToken === '') throw new XApiException(502, 'X did not return a valid access token.');
-        $expiresAt = isset($tokens['expires_in']) && is_numeric($tokens['expires_in'])
-            ? gmdate('Y-m-d H:i:s', time() + max(0, (int)$tokens['expires_in']))
-            : null;
-        $sql = 'UPDATE x_accounts SET access_token_encrypted = ?, token_expires_at = ?, updated_at = CURRENT_TIMESTAMP';
-        $values = [$this->encrypt($accessToken), $expiresAt];
-        if (isset($tokens['refresh_token']) && $tokens['refresh_token'] !== '') {
-            $sql .= ', refresh_token_encrypted = ?';
-            $values[] = $this->encrypt((string)$tokens['refresh_token']);
-        }
-        $sql .= ' WHERE user_id = ? ORDER BY id DESC LIMIT 1';
-        $values[] = $userId;
-        $this->pdo->prepare($sql)->execute($values);
+        return $this->storedSecret($userId, 'refresh_token_encrypted');
     }
 
     public function disconnect(int $userId): void
@@ -80,13 +54,13 @@ final class XAccountStore
         $stmt->execute([$userId]);
     }
 
-    private function storedToken(int $userId, string $column): ?string
+    private function storedSecret(int $userId, string $column): ?string
     {
         if ($userId <= 0) return null;
         if (!in_array($column, ['access_token_encrypted', 'refresh_token_encrypted'], true)) {
             throw new \InvalidArgumentException('Invalid token column.');
         }
-        $stmt = $this->pdo->prepare("SELECT {$column} FROM x_accounts WHERE user_id = ? ORDER BY id DESC LIMIT 1");
+        $stmt = $this->pdo->prepare("SELECT {$column} FROM x_accounts WHERE user_id = ? AND scopes = 'twitterapi.io' ORDER BY id DESC LIMIT 1");
         $stmt->execute([$userId]);
         $value = $stmt->fetchColumn();
         return is_string($value) && $value !== '' ? $this->decrypt($value) : null;

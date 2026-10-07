@@ -1,6 +1,6 @@
 # API quick guide
 
-All endpoints under `/api/` are callable without signing in, an API token, or a CSRF token. Account-scoped endpoints use a caller-supplied `user_id` (or `account_id`) to select the account. Any caller can read or modify data for an account ID they know or guess, so never expose this API to untrusted clients.
+Most endpoints under `/api/` are callable without signing in, an API token, or a CSRF token. The X account connection form requires a signed-in browser session, and dashboard publish/disconnect requests require its CSRF token. Account-scoped endpoints use a caller-supplied `user_id` (or `account_id`) to select the account. Any caller able to use an unprotected account-scoped endpoint can act on an account ID they know or guess, so never expose this API to untrusted clients.
 
 ## Create an account
 
@@ -155,12 +155,11 @@ If you omit `back_half`, the QR code goes directly to `destination_url` and does
 | `/api/short-links.php` | List, create, edit, archive short links | `user_id` in query/body |
 | `/api/token.php` | Inspect, issue, or revoke an API token | `user_id` in query/body |
 | `/api/x/account.php` | Check X connection | `user_id` in query |
-| `/api/x/connect.php` | Start X OAuth connection | `user_id` in query |
-| `/api/x/callback.php` | Complete X OAuth connection | Preserved from the OAuth start session |
+| `/api/x/connect.php` | Connect an X account through TwitterAPI.io | Signed-in browser session |
 | `/api/x/disconnect.php` | Disconnect X account | `user_id` in query/body |
 | `/api/x/analytics.php` | Read connected X account analytics | `user_id` in query |
 | `/api/x/publish.php` | Publish a post to X | `user_id` in JSON body |
 
-OAuth still uses a browser session to preserve and verify its one-time state between `/api/x/connect.php` and `/api/x/callback.php`; this is protocol state, not a Xinng account login.
+The X account connection uses TwitterAPI.io, not X's OAuth authorization page. Configure `TWITTERAPI_IO_API_KEY` and `X_TOKEN_ENCRYPTION_KEY` on the server. The signed-in dashboard connection form sends the X username, email, password, optional 2FA seed, and required residential proxy to TwitterAPI.io; Xinng does not store the password or 2FA seed. The returned login cookie and proxy are stored encrypted and used for provider-backed posting. Never submit X credentials on an untrusted or non-HTTPS deployment.
 
 The API does not configure CORS headers. A cross-origin browser frontend may need a same-origin backend/proxy or an explicit CORS configuration. Check the Network tab for the exact URL, HTTP status, and JSON response; `401` from an external provider can still indicate an expired X authorization, rather than Xinng API login.
