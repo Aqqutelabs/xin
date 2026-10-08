@@ -47,7 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim((string)($_POST['email'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
         $totpSecret = trim((string)($_POST['totp_secret'] ?? ''));
-        $proxy = trim((string)($_POST['proxy'] ?? ''));
+        $proxy = trim(TWITTERAPI_IO_DEFAULT_PROXY !== ''
+            ? TWITTERAPI_IO_DEFAULT_PROXY
+            : (string)($_POST['proxy'] ?? ''));
         if ($username === '' || $email === '' || $password === '' || $proxy === '') {
             $errorMessage = 'Username, email, password, and proxy are required.';
             http_response_code(422);
@@ -124,8 +126,12 @@ if (!$configured && http_response_code() < 400) http_response_code(503);
             <input id="password" name="password" type="password" required maxlength="1024" autocomplete="new-password">
             <label for="totp_secret">2FA secret seed (recommended)</label>
             <input id="totp_secret" name="totp_secret" type="password" maxlength="256" autocomplete="off">
-            <label for="proxy">Residential proxy URL</label>
-            <input id="proxy" name="proxy" type="password" required maxlength="2048" placeholder="http://username:password@host:port" autocomplete="off">
+            <?php if (TWITTERAPI_IO_DEFAULT_PROXY === ''): ?>
+                <label for="proxy">Residential proxy URL</label>
+                <input id="proxy" name="proxy" type="password" required maxlength="2048" placeholder="http://username:password@host:port" autocomplete="off">
+            <?php else: ?>
+                <p class="notice">The server’s configured residential proxy will be used.</p>
+            <?php endif; ?>
             <button type="submit">Connect X account</button>
         </form>
     <?php endif; ?>
