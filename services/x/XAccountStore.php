@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Xinng\X;
 
+require_once __DIR__ . '/XApiException.php';
+
 final class XAccountStore
 {
     public function __construct(private \PDO $pdo, private string $encryptionKey) {}

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Xinng\X;
 
+require_once __DIR__ . '/XApiException.php';
+
 final class TwitterApiIoService
 {
     private const BASE_URL = 'https://api.twitterapi.io';
@@ -108,14 +110,34 @@ final class TwitterApiIoService
         if ($method === 'POST') curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($payload, JSON_THROW_ON_ERROR));
         $body = curl_exec($curl);
         $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curlErrorNumber = curl_errno($curl);
         curl_close($curl);
-        if ($body === false) throw new XApiException(503, 'TwitterAPI.io could not be reached.');
+        if ($body === false) {
+            $endpoint = parse_url($path, PHP_URL_PATH);
+            error_log('TwitterAPI.io request failed at ' . $endpoint . ' with cURL error ' . $curlErrorNumber);
+            throw new XApiException(
+                503,
+                'TwitterAPI.io could not be reached (cURL error ' . $curlErrorNumber . '). Check the server DNS, outbound HTTPS, and TLS configuration.'
+            );
+        }
+        if ($status === 401 || $status === 403) {
+            throw new XApiException(401, 'TwitterAPI.io rejected the request (HTTP ' . $status . '). Check the configured API key and provider access.');
+        }
+        if ($status === 429) throw new XApiException(429, 'TwitterAPI.io is rate limiting requests. Try again later.');
+        if ($status < 200 || $status >= 300) {
+            $endpoint = parse_url($path, PHP_URL_PATH);
+            $operation = match ($endpoint) {
+                '/twitter/user_login_v2' => 'X sign-in',
+                '/twitter/user/info' => 'X profile lookup',
+                '/twitter/user/last_tweets' => 'recent-post lookup',
+                '/twitter/create_tweet_v2' => 'post publishing',
+                default => 'request',
+            };
+            throw new XApiException(502, 'TwitterAPI.io could not complete the ' . $operation . ' (HTTP ' . $status . ').');
+        }
         try { $decoded = json_decode((string)$body, true, 32, JSON_THROW_ON_ERROR); }
         catch (\JsonException) { throw new XApiException(502, 'TwitterAPI.io returned an unreadable response.'); }
         if (!is_array($decoded)) throw new XApiException(502, 'TwitterAPI.io returned an invalid response.');
-        if ($status === 401 || $status === 403) throw new XApiException(401, 'TwitterAPI.io did not accept the X account credentials.');
-        if ($status === 429) throw new XApiException(429, 'TwitterAPI.io is rate limiting requests. Try again later.');
-        if ($status < 200 || $status >= 300) throw new XApiException(502, 'TwitterAPI.io could not complete the request.');
         return $decoded;
     }
 

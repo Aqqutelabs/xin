@@ -537,104 +537,196 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
 </body>
 </html>
 <?php else: ?>
+<?php
+$appBase = rtrim((string)xinng_public_base_url(), '/');
+$allowedUrl = static function ($value): string {
+	$value = trim((string)$value);
+	return preg_match('~^(https?://|mailto:|tel:)~i', $value) ? $value : '#';
+};
+$safeAsset = static function ($value): string {
+	$value = trim((string)$value);
+  if (preg_match('~^https?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:/[A-Za-z0-9_./%?=&-]*)?(?:#[A-Za-z0-9_-]*)?$~i', $value)) return $value;
+	return preg_match('~^(?!//)[A-Za-z0-9_./%?=&-]+$~', $value) ? $value : '';
+};
+$safeColor = static function ($value, string $fallback): string {
+	$value = trim((string)$value);
+  return preg_match('/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/', $value) ? $value : $fallback;
+};
+$luminance = static function (string $color): float {
+	$hex = ltrim($color, '#');
+	if (strlen($hex) === 3) $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+	if (strlen($hex) < 6 || !ctype_xdigit(substr($hex, 0, 6))) return 0.2;
+	$channels = array_map(static fn($part) => hexdec($part) / 255, str_split(substr($hex, 0, 6), 2));
+	$channels = array_map(static fn($channel) => $channel <= 0.04045 ? $channel / 12.92 : (($channel + 0.055) / 1.055) ** 2.4, $channels);
+	return 0.2126 * $channels[0] + 0.7152 * $channels[1] + 0.0722 * $channels[2];
+};
+$headerMode = in_array(($page['header_mode'] ?? 'color'), ['color', 'gradient', 'image'], true) ? $page['header_mode'] : 'color';
+$headerColor = $safeColor($page['header_color'] ?? '', '#263238');
+$headerStart = $safeColor($page['header_gradient_start'] ?? '', $headerColor);
+$headerEnd = $safeColor($page['header_gradient_end'] ?? '', '#0A9994');
+$headerImage = $safeAsset($page['header_image_path'] ?? '');
+$headerFit = in_array(($page['header_fit'] ?? 'cover'), ['cover', 'contain', 'repeat'], true) ? $page['header_fit'] : 'cover';
+$pageBg = $safeColor($page['background_color'] ?? '', '#F4F1EC');
+$bgMode = in_array(($page['background_mode'] ?? 'color'), ['color', 'gradient', 'image'], true) ? $page['background_mode'] : 'color';
+$bgStart = $safeColor($page['background_gradient_start'] ?? '', $pageBg);
+$bgEnd = $safeColor($page['background_gradient_end'] ?? '', '#FFFFFF');
+$bgImage = $safeAsset($page['background_image_path'] ?? '');
+$accent = $safeColor($page['block_color'] ?? '', '#A44F52');
+$blockFg = $safeColor($page['block_text_color'] ?? '', '#FFFFFF');
+$titleColor = $safeColor($page['title_color'] ?? '', '#292827');
+$descriptionColor = $safeColor($page['description_color'] ?? '', '#716F6B');
+$shape = in_array(($page['block_shape'] ?? 'rounded'), ['rounded', 'pill', 'square'], true) ? $page['block_shape'] : 'rounded';
+$shadow = in_array(($page['block_shadow'] ?? 'soft'), ['none', 'soft', 'strong'], true) ? $page['block_shadow'] : 'soft';
+$font = trim((string)($page['font'] ?? 'system'));
+$font = preg_match('/^[A-Za-z0-9 -]{1,60}$/', $font) ? $font : 'system';
+$fontValue = $font === 'system' ? "'Inter', system-ui, sans-serif" : "'{$font}', 'Inter', system-ui, sans-serif";
+$headerLuma = $headerMode === 'gradient' ? ($luminance($headerStart) + $luminance($headerEnd)) / 2 : $luminance($headerColor);
+$heroTextColor = $headerMode === 'image' ? '#FFFFFF' : ($headerLuma > 0.48 ? '#202124' : '#FFFFFF');
+$pageLuma = $bgMode === 'gradient' ? ($luminance($bgStart) + $luminance($bgEnd)) / 2 : $luminance($pageBg);
+$theme = $pageLuma > 0.52 ? 'light' : 'dark';
+$headerStyle = 'background:' . $headerColor . ';';
+if ($headerMode === 'gradient') $headerStyle = 'background:linear-gradient(135deg,' . $headerStart . ',' . $headerEnd . ');';
+if ($headerMode === 'image' && $headerImage !== '') {
+  $headerStyle = 'background-color:' . $headerColor . ';background-image:url(' . $headerImage . ');background-size:' . ($headerFit === 'repeat' ? 'auto' : $headerFit) . ';background-repeat:' . ($headerFit === 'repeat' ? 'repeat' : 'no-repeat') . ';background-position:center;';
+}
+$backgroundStyle = 'background:' . $pageBg . ';';
+if ($bgMode === 'gradient') $backgroundStyle = 'background:linear-gradient(180deg,' . $bgStart . ',' . $bgEnd . ');';
+if ($bgMode === 'image' && $bgImage !== '') $backgroundStyle = 'background-color:' . $pageBg . ';background-image:url(' . $bgImage . ');background-size:cover;background-position:center;';
+$requestPath = strtok((string)($_SERVER['REQUEST_URI'] ?? ''), '?') ?: '';
+$requestHost = (string)($_SERVER['HTTP_HOST'] ?? '');
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') === '443');
+$publicUrl = preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $requestHost) && str_starts_with($requestPath, '/')
+	? (($isHttps ? 'https://' : 'http://') . $requestHost . $requestPath)
+	: ($appBase . '/' . rawurlencode((string)($page['slug'] ?? '')));
+$publicUrl = $allowedUrl($publicUrl);
+$homeUrl = $allowedUrl($appBase . '/index.php');
+$signupUrl = $allowedUrl($appBase . '/signup.php');
+$profileImage = $safeAsset($profile);
+$hasSubscribe = (bool)array_filter($blocks, static fn($block) => ($block['type'] ?? '') === 'subscribe');
+$socialPlacement = ($page['social_placement'] ?? 'top') === 'bottom' ? 'bottom' : 'top';
+$socialStyle = preg_replace('/[^A-Za-z0-9_-]/', '', (string)($page['social_icon_style'] ?? 'original')) ?: 'original';
+$youtubeId = static function ($url): string {
+	$parts = parse_url((string)$url);
+	if (!is_array($parts)) return '';
+	$host = strtolower((string)($parts['host'] ?? ''));
+	$path = trim((string)($parts['path'] ?? ''), '/');
+	$id = '';
+  if ($host === 'youtu.be' || $host === 'www.youtu.be') $id = explode('/', $path)[0] ?? '';
+  elseif (in_array($host, ['youtube.com', 'www.youtube.com', 'm.youtube.com'], true)) {
+		parse_str((string)($parts['query'] ?? ''), $query);
+		if (!empty($query['v'])) $id = (string)$query['v'];
+		elseif (preg_match('~^(?:shorts|embed)/([^/]+)~', $path, $match)) $id = $match[1];
+	}
+	return preg_match('/^[A-Za-z0-9_-]{11}$/', $id) ? $id : '';
+};
+$qrImage = static function (string $url): string {
+	return 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=' . rawurlencode($url);
+};
+?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="<?= e($pageBg) ?>">
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($description) ?>">
-  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/dashboard.css">
-  <style>
-    :root { font-family: Inter, system-ui, sans-serif; color-scheme: light; }
-    body { margin: 0; background: #f7f7fb; line-height: 1.7; }
-    .pb-page { width: min(420px, 100%); min-height: 100vh; margin: 0 auto; text-align: center; }
-    .pb-page .pb-header { width: 100%; }
-    .pb-page .pb-content { padding-left: 16px; padding-right: 16px; }
-
-    .pb-public-body { min-height: 100%; overflow-x: hidden; overflow-y: auto; background: #f4f1ec; color: #292827; }
-    .pb-public-page { width: min(680px, calc(100% - 32px)); min-height: 100vh; padding: 28px 0 36px; text-align: center; }
-    .pb-public-page .pb-header { min-height: 190px; border-radius: 24px 24px 0 0; }
-    .pb-public-page .pb-content { padding: 82px 24px 30px; border-radius: 0 0 24px 24px; background: #fbfaf8; box-shadow: 0 18px 55px rgba(41,40,39,.08); }
-    .pb-public-page .pb-heading { display: grid; justify-items: center; gap: 8px; }
-    .pb-public-page .pb-heading h2 { margin: 0; color: #292827 !important; font-size: clamp(26px, 5vw, 36px); font-weight: 800; line-height: 1.12; letter-spacing: -.02em; overflow-wrap: anywhere; }
-    .pb-public-page .pb-handle { margin: 0; color: #8a8680 !important; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
-    .pb-public-page .pb-content p { width: min(520px, 100%); max-width: none; margin: 12px auto 0; color: #716f6b !important; font-size: 15px; font-weight: 500; line-height: 1.7; overflow-wrap: anywhere; white-space: normal; }
-    .pb-public-page .pb-socials { margin: 20px 0 10px; gap: 8px; }
-    .pb-public-page .pb-socials span { width: 36px; height: 36px; border-color: #e1ded9; color: #57534e; background: #fff; }
-    .pb-public-page .pb-blocks { gap: 12px; margin-top: 24px; }
-    .pb-public-page .pb-block { position: relative; min-height: 62px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 15px 44px 15px 48px; border: 1px solid rgba(41,40,39,.08); border-radius: 12px; background: #fff !important; color: #292827 !important; box-shadow: 0 8px 20px rgba(41,40,39,.06); font-size: 14px; font-weight: 750; line-height: 1.35; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; overflow-wrap: anywhere; }
-    .pb-public-page .pb-block:hover { border-color: #c9a5a6; box-shadow: 0 12px 26px rgba(41,40,39,.1); transform: translateY(-2px); }
-    .pb-public-page .pb-block > i { position: absolute; left: 16px; color: #a44f52; font-size: 14px; }
-    .pb-public-page .pb-block:after { content: '\f054'; position: absolute; right: 16px; color: #aaa49d; font-family: 'Font Awesome 6 Free'; font-size: 11px; font-weight: 900; }
-    .pb-public-page .pb-block.text { display: block; padding: 18px 20px; text-align: left; color: #57534e !important; font-weight: 500; }
-    .pb-public-page .pb-block.text:after { display: none; }
-    .pb-public-page .pb-block.text > i { position: static; margin-right: 7px; color: #a44f52; }
-    .pb-public-page .pb-block strong { overflow-wrap: anywhere; }
-    .pb-public-page .pb-block small { display: block; margin-top: 5px; color: #716f6b; font-size: 12px; font-weight: 500; line-height: 1.5; }
-    .pb-public-page .pb-empty { padding: 22px; border: 1px dashed #c9c3bb; border-radius: 12px; color: #716f6b; background: #f7f5f2; font-size: 13px; font-weight: 500; }
-    .pb-public-page .pb-brand { margin-top: 30px; color: #96918a; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
-    .pb-public-page .pb-brand .xinng-brand { opacity: .72; }
-    .pb-public-page a:focus-visible { outline: 3px solid rgba(164,79,82,.35); outline-offset: 3px; }
-    @media (max-width: 560px) {
-      .pb-public-page { width: min(100% - 20px, 680px); padding-top: 10px; }
-      .pb-public-page .pb-header { min-height: 150px; border-radius: 18px 18px 0 0; }
-      .pb-public-page .pb-content { padding: 72px 14px 24px; border-radius: 0 0 18px 18px; }
-      .pb-public-page .pb-block { padding-left: 42px; padding-right: 38px; }
-    }
-  </style>
-  <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/brand.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="<?= e($appBase) ?>/assets/css/public-page.css">
+  <link rel="stylesheet" href="<?= e($appBase) ?>/assets/css/brand.css">
+  <script src="<?= e($appBase) ?>/assets/js/public-page.js" defer></script>
 </head>
-<body class="pb-public-body">
-<?php
-$header = $page['header_mode'] ?? 'color';
-$headerStyle = 'background:' . ($page['header_color'] ?? '#26282C') . ';';
-if ($header === 'gradient') $headerStyle = 'background:linear-gradient(135deg,' . ($page['header_gradient_start'] ?? '#26282C') . ',' . ($page['header_gradient_end'] ?? '#0A9994') . ');';
-if ($header === 'image' && !empty($page['header_image_path'])) {
-	$fit = ($page['header_fit'] ?? 'cover') === 'repeat' ? 'auto' : ($page['header_fit'] ?? 'cover');
-	$repeat = ($page['header_fit'] ?? 'cover') === 'repeat' ? 'repeat' : 'no-repeat';
-	$headerStyle = "background-image:url('" . e($page['header_image_path']) . "');background-size:{$fit};background-repeat:{$repeat};background-position:center;";
-}
-$backgroundStyle = 'background:' . ($page['background_color'] ?? '#FFFAF6') . ';';
-if (($page['background_mode'] ?? 'color') === 'gradient') $backgroundStyle = 'background:linear-gradient(180deg,' . ($page['background_gradient_start'] ?? '#FFFAF6') . ',' . ($page['background_gradient_end'] ?? '#FFFFFF') . ');';
-if (($page['background_mode'] ?? 'color') === 'image' && !empty($page['background_image_path'])) $backgroundStyle = "background-image:url('" . e($page['background_image_path']) . "');background-size:cover;background-position:center;";
-$font = ($page['font'] ?? 'system') === 'system' ? 'Inter,system-ui,sans-serif' : ($page['font'] ?? 'system') . ',Inter,system-ui,sans-serif';
-$blockColor = $page['block_color'] ?? '#0A9994';
-$blockTextColor = $page['block_text_color'] ?? '#FFFAF6';
-$shapeClass = 'shape-' . ($page['block_shape'] ?? 'rounded');
-$shadowClass = 'shadow-' . ($page['block_shadow'] ?? 'soft');
-$socialsHtml = implode('', array_map(static fn($social) => '<span>' . public_social_icon($social['platform'] ?? 'link') . '</span>', $socials));
-?>
-  <main class="pb-page pb-public-page" style="<?= e($backgroundStyle) ?>font-family:<?= e($font) ?>;">
-    <div class="pb-header layout-<?= e($page['layout'] ?? 'simple') ?>" style="<?= e($headerStyle) ?>">
-      <div class="pb-avatar"><?php if ($profile): ?><img src="<?= e($profile) ?>" alt=""><?php else: ?><i class="fa-regular fa-image"></i><?php endif; ?></div>
-    </div>
-    <div class="pb-content">
-      <div class="pb-heading">
-        <h2 style="color:<?= e($page['title_color'] ?? '#26282C') ?>"><?= e($title ?: 'Page title') ?></h2>
+<body class="pb-public-body" style="--wall-bg:<?= e($pageBg) ?>;<?= e($backgroundStyle) ?>">
+  <main class="pb-public-page" data-theme="<?= e($theme) ?>" data-page-title="<?= e($title) ?>" data-page-url="<?= e($publicUrl) ?>" style="--accent:<?= e($accent) ?>;--block-bg:<?= e($accent) ?>;--block-fg:<?= e($blockFg) ?>;--radius:<?= $shape === 'square' ? '6px' : '18px' ?>;--page-bg:<?= e($pageBg) ?>;--font:<?= e($fontValue) ?>;--title-color:<?= e($titleColor) ?>;--description-color:<?= e($descriptionColor) ?>;--hero-fg:<?= e($heroTextColor) ?>;<?= e($backgroundStyle) ?>">
+    <header class="pb-hero" style="<?= e($headerStyle) ?>">
+      <div class="pb-topbar">
+        <?php if (empty($page['hide_xinng_logo'])): ?><a class="pb-glass pb-mark" href="<?= e($homeUrl) ?>" aria-label="Xinng home"><span>xin</span></a><?php else: ?><span></span><?php endif; ?>
+        <div class="pb-top-actions">
+          <?php if ($hasSubscribe): ?><button class="pb-glass pb-subscribe" type="button" data-scroll-subscribe><i class="fa-regular fa-bell" aria-hidden="true"></i><span>Subscribe</span></button><?php endif; ?>
+          <button class="pb-glass pb-share" type="button" data-share-page aria-label="Share this page" title="Share"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i></button>
+        </div>
+      </div>
+      <div class="pb-hero-fade" aria-hidden="true"></div>
+    </header>
+
+    <section class="pb-content" aria-label="<?= e($title ?: 'Profile') ?>">
+      <div class="pb-identity">
+        <div class="pb-avatar" aria-hidden="true" style="--avatar-fallback:linear-gradient(135deg,<?= e($accent) ?>,<?= e($headerEnd) ?>)">
+          <?php if ($profileImage !== ''): ?><img src="<?= e($profileImage) ?>" alt=""><?php else: ?><span><?= e(public_initials($title)) ?></span><?php endif; ?>
+        </div>
+        <div class="pb-name-row"><h1><?= e($title ?: 'Page title') ?></h1><?php if (!empty($page['is_verified'])): ?><span class="pb-verified" aria-label="Verified"><i class="fa-solid fa-check" aria-hidden="true"></i></span><?php endif; ?></div>
         <?php if (!empty($page['slug'])): ?><p class="pb-handle">@<?= e($page['slug']) ?></p><?php endif; ?>
+        <?php if (trim((string)$description) !== ''): ?><div class="pb-bio-wrap"><p class="pb-bio" data-bio><?= e($description) ?></p><button class="pb-more" type="button" data-bio-toggle aria-expanded="false" hidden>more</button></div><?php endif; ?>
       </div>
-      <p class="pb-description" style="color:<?= e($page['description_color'] ?? '#26282C') ?>"><?= e($description ?: 'Your page description') ?></p>
-      <?php if (($page['social_placement'] ?? 'top') !== 'bottom'): ?><div class="pb-socials style-<?= e($page['social_icon_style'] ?? 'original') ?>"><?= $socialsHtml ?></div><?php endif; ?>
-      <div class="pb-blocks">
-        <?php foreach ($blocks as $block):
-          $type = $block['type'] ?? 'link';
-          $blockUrl = trim((string)($block['destination_url'] ?? '')) ?: '#';
-          $style = 'color:' . $blockTextColor . ';background:' . $blockColor;
-          $tag = $type === 'text' ? 'div' : 'a';
-        ?>
-          <<?= $tag ?> class="pb-block <?= $type === 'image' ? 'image ' : '' ?><?= e($shapeClass) ?> <?= e($shadowClass) ?>" style="<?= e($style) ?>"<?= $tag === 'a' ? ' href="' . e($blockUrl) . '" aria-label="' . e($block['title'] ?? 'Open link') . '"' : '' ?>>
-            <?php if ($type === 'image' && !empty($block['image_path'])): ?><img src="<?= e($block['image_path']) ?>" alt=""><?php endif; ?>
-            <?= public_block_icon($type) ?>
-            <strong><?= e($block['title'] ?? 'Link block') ?></strong>
-            <?php if (!empty($block['description']) || in_array($type, ['qr', 'image'], true)): ?><small><?= e($block['description'] ?? '') ?></small><?php endif; ?>
-          </<?= $tag ?>>
+
+      <?php if ($socialPlacement === 'top' && $socials): ?><ul class="pb-socials style-<?= e($socialStyle) ?>" aria-label="Social links">
+        <?php foreach ($socials as $social): $socialUrl = $allowedUrl($social['url'] ?? ''); $socialExternal = preg_match('~^https?://~i', $socialUrl); ?>
+          <li><a href="<?= e($socialUrl) ?>" aria-label="<?= e(ucfirst((string)($social['platform'] ?? 'Social'))) ?>"<?= $socialExternal ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= public_social_icon($social['platform'] ?? 'link') ?></a></li>
         <?php endforeach; ?>
-        <?php if (!$blocks): ?><div class="pb-empty">Add links, content, bookings, and social blocks to build your personal page.</div><?php endif; ?>
-      </div>
-      <?php if (($page['social_placement'] ?? 'top') === 'bottom'): ?><div class="pb-socials style-<?= e($page['social_icon_style'] ?? 'original') ?>"><?= $socialsHtml ?></div><?php endif; ?>
-      <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
-    </div>
+      </ul><?php endif; ?>
+
+      <ul class="pb-blocks" aria-label="Page links">
+        <?php $delay = 0; foreach ($blocks as $index => $block):
+          $type = (string)($block['type'] ?? 'link');
+          $blockTitle = trim((string)($block['title'] ?? '')) ?: 'Link';
+          $blockDescription = trim((string)($block['description'] ?? ''));
+          $blockUrl = $allowedUrl($block['destination_url'] ?? '');
+          $external = preg_match('~^https?://~i', $blockUrl);
+          $image = $safeAsset($block['image_path'] ?? '');
+          $videoId = in_array($type, ['video', 'youtube'], true) ? $youtubeId($blockUrl) : '';
+          $headingMatch = [];
+          $isSection = $type === 'text' && (preg_match('/^##\s+(.+)$/', $blockTitle, $headingMatch) || str_ends_with($blockTitle, ':'));
+          if ($isSection) {
+            $sectionTitle = isset($headingMatch[1]) ? trim($headingMatch[1]) : rtrim($blockTitle, ':');
+        ?>
+          <li class="pb-section-label" style="--item-delay:<?= (int)$delay++ * 40 ?>ms"><h2><?= e($sectionTitle) ?></h2></li>
+        <?php continue; } ?>
+          <li class="pb-item" data-block-type="<?= e($type) ?>"<?= $type === 'subscribe' ? ' id="pb-subscribe"' : '' ?> style="--item-delay:<?= (int)$delay++ * 40 ?>ms">
+            <article class="pb-card pb-card--<?= e(preg_match('/^[a-z_]+$/', $type) ? $type : 'link') ?> shape-<?= e($shape) ?> shadow-<?= e($shadow) ?>">
+              <?php if (in_array($type, ['video', 'youtube'], true)): ?>
+                <div class="pb-media pb-video" data-video-container>
+                  <?php if ($videoId !== ''): ?><button class="pb-video-launch" type="button" data-youtube-id="<?= e($videoId) ?>" aria-label="Play <?= e($blockTitle) ?>">
+                    <img src="https://i.ytimg.com/vi/<?= e($videoId) ?>/hqdefault.jpg" alt="" loading="lazy"><span class="pb-play"><i class="fa-solid fa-play" aria-hidden="true"></i></span>
+                    <span class="pb-media-caption"><strong><?= e($blockTitle) ?></strong><small><i class="fa-brands fa-youtube" aria-hidden="true"></i> YouTube</small></span>
+                  </button><?php else: ?><a class="pb-video-launch" href="<?= e($blockUrl) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?> aria-label="Open <?= e($blockTitle) ?>">
+                    <?php if ($image !== ''): ?><img src="<?= e($image) ?>" alt="" loading="lazy"><?php else: ?><span class="pb-video-placeholder"></span><?php endif; ?><span class="pb-play"><i class="fa-solid fa-play" aria-hidden="true"></i></span><span class="pb-media-caption"><strong><?= e($blockTitle) ?></strong><small>Video</small></span>
+                  </a><?php endif; ?>
+                </div>
+              <?php elseif ($type === 'image'): ?>
+                <div class="pb-image-card">
+                  <?php if ($image !== ''): ?><img class="pb-image" src="<?= e($image) ?>" alt="<?= e($blockTitle) ?>" loading="lazy"><?php endif; ?>
+                  <div class="pb-card-title"><a href="<?= e($blockUrl) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= e($blockTitle) ?></a><?php if ($blockDescription !== ''): ?><small><?= e($blockDescription) ?></small><?php endif; ?></div>
+                </div>
+              <?php elseif ($type === 'text'): ?>
+                <div class="pb-text-card"><span><?= public_block_icon($type) ?></span><div><?php if ($blockTitle !== ''): ?><strong><?= e($blockTitle) ?></strong><?php endif; ?><?php if ($blockDescription !== ''): ?><p><?= e($blockDescription) ?></p><?php endif; ?></div></div>
+              <?php elseif ($type === 'qr'): ?>
+                <a class="pb-qr-card" href="<?= e($blockUrl) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><img src="<?= e($qrImage($blockUrl !== '#' ? $blockUrl : $publicUrl)) ?>" alt="QR code for <?= e($blockTitle) ?>" loading="lazy"><strong><?= e($blockTitle) ?></strong><?php if ($blockDescription !== ''): ?><small><?= e($blockDescription) ?></small><?php endif; ?></a>
+              <?php else: ?>
+                <a class="pb-link-card" href="<?= e($blockUrl) ?>"<?= $external ? ' target="_blank" rel="noopener noreferrer"' : '' ?> aria-label="<?= e($blockTitle) ?>">
+                  <span class="pb-link-icon"><?= public_block_icon($type) ?></span><span class="pb-link-copy"><strong><?= e($blockTitle) ?></strong><?php if ($blockDescription !== ''): ?><small><?= e($blockDescription) ?></small><?php endif; ?></span>
+                </a>
+              <?php endif; ?>
+              <div class="pb-kebab-wrap"><button class="pb-kebab" type="button" aria-label="More options for <?= e($blockTitle) ?>" aria-expanded="false" aria-haspopup="true" data-kebab><span aria-hidden="true">⋮</span></button><div class="pb-popover" data-popover hidden><button type="button" data-copy-url="<?= e($blockUrl) ?>">Copy link</button><button type="button" data-share-url="<?= e($blockUrl) ?>" data-share-title="<?= e($blockTitle) ?>">Share</button></div></div>
+            </article>
+          </li>
+        <?php endforeach; ?>
+        <?php if (!$blocks): ?><li class="pb-empty">Nothing here yet</li><?php endif; ?>
+      </ul>
+
+      <?php if ($socialPlacement === 'bottom' && $socials): ?><ul class="pb-socials pb-socials--bottom style-<?= e($socialStyle) ?>" aria-label="Social links">
+        <?php foreach ($socials as $social): $socialUrl = $allowedUrl($social['url'] ?? ''); $socialExternal = preg_match('~^https?://~i', $socialUrl); ?>
+          <li><a href="<?= e($socialUrl) ?>" aria-label="<?= e(ucfirst((string)($social['platform'] ?? 'Social'))) ?>"<?= $socialExternal ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= public_social_icon($social['platform'] ?? 'link') ?></a></li>
+        <?php endforeach; ?>
+      </ul><?php endif; ?>
+
+      <footer class="pb-footer">
+        <nav class="pb-footer-links" aria-label="Footer"><a href="#">Report</a><a href="#">Privacy</a><a href="<?= e($homeUrl) ?>">Explore</a></nav>
+        <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="<?= e($homeUrl) ?>" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url($appBase)) ?>" alt="Xinng" width="1736" height="906"></a></div><?php endif; ?>
+      </footer>
+    </section>
+    <?php if (empty($page['hide_xinng_logo'])): ?><div class="pb-mobile-promo" data-promo><a href="<?= e($signupUrl) ?>">xin.ng/<?= e($page['slug'] ?? '') ?> <span>Create your own page</span></a><button type="button" data-dismiss-promo aria-label="Dismiss">×</button></div><?php endif; ?>
+    <aside class="pb-desktop-qr" aria-label="View this page on mobile"><img src="<?= e($qrImage($publicUrl)) ?>" alt="QR code to view this page on mobile"><span>View on mobile</span></aside>
+    <div class="pb-toast" role="status" aria-live="polite" data-toast></div>
   </main>
 </body>
 </html>
