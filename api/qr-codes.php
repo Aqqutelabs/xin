@@ -2,20 +2,15 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-
-$user_id = (int)$_SESSION['user_id'];
 $pdo = get_db_connection();
 if (!$pdo) {
 	http_response_code(500);
 	echo json_encode(['ok' => false, 'error' => 'db']);
 	exit;
 }
+xinng_ensure_api_token_table($pdo);
+$user_id = 0;
+$sessionAuth = $user_id > 0;
 xinng_ensure_short_link_tables($pdo);
 xinng_ensure_qr_code_tables($pdo);
 xinng_ensure_credit_tables($pdo);
@@ -136,24 +131,20 @@ function save_qr_data(PDO $pdo, int $user_id, array $payload, ?array $existing =
 
 	if ($existing) {
 		if (($existing['type'] ?? '') === 'profile_page') return ['ok' => false, 'error' => 'Profile QR cannot be edited from here.'];
-		if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-			return ['ok' => false, 'error' => 'insufficient_credits'];
-		}
 		$stmt = $pdo->prepare('UPDATE qr_codes SET short_link_id = ?, type = ?, title = ?, name = ?, destination_url = ?, back_half = ?, code_color = ?, background_color = ?, corner_color = ?, pattern_style = ?, corner_style = ?, frame_style = ?, frame_text = ?, logo_path = ?, remove_xinng_logo = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
 		$stmt->execute([$shortLinkId, $type, $title, $title, $destination['url'], $backHalf['back_half'], $codeColor, $bgColor, $cornerColor, $pattern, $corner, $frame ?: null, $frameText ?: null, $logoPath ?: null, $removeLogo, (int)$existing['id'], $user_id]);
 		$id = (int)$existing['id'];
 	} else {
-		if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-			return ['ok' => false, 'error' => 'insufficient_credits'];
-		}
 		$stmt = $pdo->prepare('INSERT INTO qr_codes (user_id, short_link_id, type, title, name, destination_url, back_half, status, code_color, background_color, corner_color, pattern_style, corner_style, frame_style, frame_text, logo_path, remove_xinng_logo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, "active", ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())');
 		$stmt->execute([$user_id, $shortLinkId, $type, $title, $title, $destination['url'], $backHalf['back_half'], $codeColor, $bgColor, $cornerColor, $pattern, $corner, $frame ?: null, $frameText ?: null, $logoPath ?: null, $removeLogo]);
 		$id = (int)$pdo->lastInsertId();
 	}
 
-	xinng_charge_credits($pdo, $user_id, 1, 'Create QR code', 'qr:' . $id);
 	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
-	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $destination['url']), $id]);
+	$qrDataUrl = !empty($backHalf['back_half'])
+		? xinng_short_url($backHalf['back_half'])
+		: $destination['url'];
+	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $qrDataUrl), $id]);
 	return ['ok' => true, 'qr_code' => qr_row(current_qr($pdo, $id, $user_id))];
 }
 
@@ -162,6 +153,20 @@ $payload = qr_payload();
 if ($method === 'POST' && !empty($payload['_method'])) $method = strtoupper((string)$payload['_method']);
 
 try {
+	$user_id = xinng_public_api_account_user_id($pdo, $payload);
+	if ($user_id <= 0) {
+		http_response_code(422);
+		echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+		exit;
+	}
+	$stmt = $pdo->prepare('SELECT 1 FROM users WHERE id = ? LIMIT 1');
+	$stmt->execute([$user_id]);
+	if (!$stmt->fetchColumn()) {
+		http_response_code(404);
+		echo json_encode(['ok' => false, 'error' => 'user_not_found']);
+		exit;
+	}
+
 	if ($method === 'GET') {
 		$id = (int)($_GET['id'] ?? 0);
 		if ($id > 0) {
@@ -177,12 +182,6 @@ try {
 		if ($profile) $rows[] = qr_row($profile);
 		foreach ($stmt->fetchAll() as $row) $rows[] = qr_row($row);
 		echo json_encode(['ok' => true, 'qr_codes' => $rows]);
-		exit;
-	}
-
-	if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
-		http_response_code(403);
-		echo json_encode(['ok' => false, 'error' => 'csrf']);
 		exit;
 	}
 

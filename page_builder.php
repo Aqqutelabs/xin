@@ -66,9 +66,12 @@ $csrf = csrf_token();
       <div class="builder-url"><i class="fa-solid fa-link"></i><strong id="builder-url-text"><?= e(str_replace(['http://','https://'], '', $publicUrl)) ?></strong><button id="copy-page-url" type="button"><i class="fa-regular fa-copy"></i></button></div>
     </div>
     <div class="builder-actions">
-      <button class="small-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
-      <a class="small-btn" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-      <button class="small-btn" type="button"><i class="fa-solid fa-share-nodes"></i>Share</button>
+      <a class="small-btn builder-ai-link" href="ai_page.php"><i class="fa-solid fa-wand-magic-sparkles"></i> AI builder</a>
+      <div class="builder-icon-actions" aria-label="Page tools">
+        <button class="small-btn" type="button" aria-label="More page tools"><i class="fa-solid fa-ellipsis"></i></button>
+        <a class="small-btn" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener" aria-label="Open public page"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+      </div>
+      <button class="small-btn builder-share-btn" type="button" id="share-page-on-x" data-x-share="<?= e($publicUrl) ?>" data-x-share-text="Check out my Xinng page."><i class="fa-brands fa-x-twitter"></i>Share on X</button>
       <div class="save-state is-saved" id="save-state" role="status" aria-live="polite">
         <span class="save-state-dot" aria-hidden="true"></span><strong>All changes saved</strong>
       </div>
@@ -211,6 +214,7 @@ $csrf = csrf_token();
 
     })();
   </script>
-<script src="assets/js/page-builder.js?v=20261017-social-styles-v4"></script>
+  <script src="assets/js/page-builder.js?v=20261017-merge-v1"></script>
+  <script src="assets/js/x-share.js"></script>
 </body>
 </html>

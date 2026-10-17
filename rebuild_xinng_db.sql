@@ -125,7 +125,7 @@ CREATE TABLE links (
 
 CREATE TABLE short_links (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NULL,
     title VARCHAR(150) NOT NULL,
     destination_url TEXT NOT NULL,
     back_half VARCHAR(64) NOT NULL,

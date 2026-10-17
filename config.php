@@ -64,7 +64,25 @@ $ADMIN_PASSWORD_HASH = '$2y$10$7uL.r0Qr52/V9OaMT03yXuVtCr4f1sW53orhjxiiHQxZw.7Uq
 // Leave blank to auto-detect current URL.
 // In production (including cPanel), prefer setting APP_URL or PUBLIC_URL in .env
 // so links are generated with your live domain instead of localhost.
-$PUBLIC_URL = getenv('APP_URL') ?: getenv('PUBLIC_URL') ?: getenv('SITE_URL') ?: '';
+$PUBLIC_URL = xinng_normalize_public_url(getenv('APP_URL') ?: getenv('PUBLIC_URL') ?: getenv('SITE_URL') ?: '');
+
+// AI page generation providers. Keys stay server-side and are never exposed to the browser.
+if (!defined('AI_DEFAULT_PROVIDER')) define('AI_DEFAULT_PROVIDER', strtolower(xinng_env('AI_DEFAULT_PROVIDER', 'gemini')));
+if (!defined('GEMINI_API_KEY')) define('GEMINI_API_KEY', xinng_env('GEMINI_API_KEY'));
+if (!defined('GEMINI_MODEL')) define('GEMINI_MODEL', xinng_env('GEMINI_MODEL', 'gemini-3.6-flash'));
+if (!defined('DEEPSEEK_API_KEY')) define('DEEPSEEK_API_KEY', xinng_env('DEEPSEEK_API_KEY'));
+if (!defined('DEEPSEEK_MODEL')) define('DEEPSEEK_MODEL', xinng_env('DEEPSEEK_MODEL', 'deepseek-chat'));
+if (!defined('AI_MAX_PROMPT_LENGTH')) define('AI_MAX_PROMPT_LENGTH', max(500, min(10000, (int)xinng_env('AI_MAX_PROMPT_LENGTH', '3000'))));
+if (!defined('AI_PAGE_GENERATION_COST')) define('AI_PAGE_GENERATION_COST', max(0, min(100, (int)xinng_env('AI_PAGE_GENERATION_COST', '5'))));
+
+// X API configuration. OAuth secrets and encryption keys remain server-side.
+if (!defined('X_CLIENT_ID')) define('X_CLIENT_ID', xinng_env('X_CLIENT_ID'));
+if (!defined('X_CLIENT_SECRET')) define('X_CLIENT_SECRET', xinng_env('X_CLIENT_SECRET'));
+if (!defined('X_REDIRECT_URI')) define('X_REDIRECT_URI', xinng_env('X_REDIRECT_URI', rtrim((string)($PUBLIC_URL ?: ''), '/') . '/api/x/callback.php'));
+if (!defined('X_TOKEN_ENCRYPTION_KEY')) define('X_TOKEN_ENCRYPTION_KEY', xinng_env('X_TOKEN_ENCRYPTION_KEY'));
+if (!defined('TWITTERAPI_IO_API_KEY')) define('TWITTERAPI_IO_API_KEY', xinng_env('TWITTERAPI_IO_API_KEY'));
+if (!defined('TWITTERAPI_IO_DEFAULT_PROXY')) define('TWITTERAPI_IO_DEFAULT_PROXY', xinng_env('TWITTERAPI_IO_DEFAULT_PROXY'));
+if (!defined('X_API_BEARER_TOKEN')) define('X_API_BEARER_TOKEN', xinng_env('X_API_BEARER_TOKEN'));
 
 // -------------------------
 // SMTP / Mailer configuration (optional)
@@ -242,12 +260,56 @@ function get_db_connection(): ?PDO {
 	];
 	try {
 		$pdo = new PDO($dsn, DB_USER, DB_PASS, $opts);
+		xinng_migrate_http_public_urls($pdo);
 		return $pdo;
 	} catch (PDOException $e) {
 		$GLOBALS['xinng_db_error'] = $e->getMessage();
 		error_log('DB connection failed: '.$e->getMessage());
 		return null;
 	}
+}
+
+function xinng_ensure_x_account_tables(PDO $pdo): void {
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS x_accounts (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL,
+			x_user_id VARCHAR(32) NOT NULL,
+			username VARCHAR(15) NOT NULL,
+			display_name VARCHAR(100) NULL,
+			profile_image_url TEXT NULL,
+			access_token_encrypted TEXT NOT NULL,
+			refresh_token_encrypted TEXT NULL,
+			token_expires_at DATETIME NULL,
+			scopes VARCHAR(500) NOT NULL,
+			connected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			UNIQUE KEY unique_user_x_account (user_id, x_user_id),
+			CONSTRAINT fk_x_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			INDEX idx_x_accounts_user_id (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+}
+
+function xinng_ensure_x_post_metric_tables(PDO $pdo): void {
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS x_post_metrics (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL,
+			x_post_id VARCHAR(32) NOT NULL,
+			post_text TEXT NOT NULL,
+			posted_at DATETIME NULL,
+			like_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			repost_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			reply_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			quote_count BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			impression_count BIGINT UNSIGNED NULL,
+			fetched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT fk_x_post_metrics_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			INDEX idx_x_post_metrics_user_fetched (user_id, fetched_at),
+			INDEX idx_x_post_metrics_post (user_id, x_post_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
 }
 // -------------------------
 // Slug helper
@@ -275,6 +337,106 @@ function verify_csrf_token(?string $token): bool {
 	return hash_equals($_SESSION['_csrf_token'], $token);
 }
 
+function xinng_public_api_user_id(array $payload = []): int {
+	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+	$value = $payload['user_id']
+		?? $payload['account_id']
+		?? $_GET['user_id']
+		?? $_GET['account_id']
+		?? $_POST['user_id']
+		?? $_POST['account_id']
+		?? $_SESSION['user_id']
+		?? 0;
+	$userId = filter_var($value, FILTER_VALIDATE_INT);
+	return $userId !== false && $userId > 0 ? $userId : 0;
+}
+
+function xinng_public_api_account_user_id(PDO $pdo, array $payload = []): int {
+	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+	$value = $payload['user_id']
+		?? $payload['account_id']
+		?? $_GET['user_id']
+		?? $_GET['account_id']
+		?? $_POST['user_id']
+		?? $_POST['account_id']
+		?? $_SESSION['user_id']
+		?? 0;
+
+	if (is_int($value) || (is_string($value) && preg_match('/^[0-9]+$/D', $value))) {
+		$userId = filter_var($value, FILTER_VALIDATE_INT);
+		return $userId !== false && $userId > 0 ? $userId : 0;
+	}
+	if (!is_string($value)) return 0;
+	$externalId = trim($value);
+	if ($externalId === '' || strlen($externalId) > 191) return 0;
+
+	xinng_ensure_credit_tables($pdo);
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS api_external_accounts (
+			external_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT fk_api_external_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+	$stmt = $pdo->prepare('SELECT user_id FROM api_external_accounts WHERE external_id = ? LIMIT 1');
+	$stmt->execute([$externalId]);
+	$userId = $stmt->fetchColumn();
+	if ($userId !== false) return (int)$userId;
+
+	$email = 'external-' . hash('sha256', $externalId) . '@api.xinng.invalid';
+	try {
+		$pdo->beginTransaction();
+		$stmt = $pdo->prepare('INSERT INTO users (uuid, name, email, password_hash, created_at, updated_at) VALUES (UUID(), ?, ?, ?, NOW(), NOW())');
+		$stmt->execute(['External API account', $email, password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT)]);
+		$userId = (int)$pdo->lastInsertId();
+		$stmt = $pdo->prepare('INSERT INTO api_external_accounts (external_id, user_id) VALUES (?, ?)');
+		$stmt->execute([$externalId, $userId]);
+		$pdo->commit();
+		return $userId;
+	} catch (PDOException $error) {
+		if ($pdo->inTransaction()) $pdo->rollBack();
+		$stmt = $pdo->prepare('SELECT user_id FROM api_external_accounts WHERE external_id = ? LIMIT 1');
+		$stmt->execute([$externalId]);
+		$userId = $stmt->fetchColumn();
+		if ($userId !== false) return (int)$userId;
+		throw $error;
+	}
+}
+
+function xinng_ensure_api_token_table(PDO $pdo): void {
+	$pdo->exec("CREATE TABLE IF NOT EXISTS api_tokens (
+		user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+		token_hash CHAR(64) NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT fk_api_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function xinng_issue_api_token(PDO $pdo, int $userId): string {
+	$token = 'xin_' . rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+	$stmt = $pdo->prepare('INSERT INTO api_tokens (user_id, token_hash, created_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE token_hash = VALUES(token_hash), created_at = NOW()');
+	$stmt->execute([$userId, hash('sha256', $token)]);
+	return $token;
+}
+
+function xinng_request_bearer_token(): ?string {
+	$authorization = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+	if ($authorization === '' && function_exists('getallheaders')) {
+		$headers = getallheaders();
+		$authorization = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+	}
+	return preg_match('/^Bearer\s+([A-Za-z0-9_-]+)$/i', trim($authorization), $matches) ? $matches[1] : null;
+}
+
+function xinng_api_token_user_id(PDO $pdo, string $token): ?int {
+	xinng_ensure_api_token_table($pdo);
+	$stmt = $pdo->prepare('SELECT user_id FROM api_tokens WHERE token_hash = ? LIMIT 1');
+	$stmt->execute([hash('sha256', $token)]);
+	$userId = $stmt->fetchColumn();
+	return $userId !== false ? (int)$userId : null;
+}
+
 function xinng_reserved_back_halves(): array {
 	return [
 		'login', 'signin', 'sign-in', 'register', 'signup', 'sign-up',
@@ -294,19 +456,41 @@ function xinng_normalize_back_half(string $value): ?string {
 	return $value;
 }
 
+function xinng_normalize_public_url(string $value): string {
+	$value = trim((string)$value);
+	if ($value === '') return '';
+	$value = preg_replace('#/+$#', '', $value);
+	if ($value === '') return '';
+	if (!preg_match('#^https?://#i', $value)) {
+		$value = 'https://' . ltrim($value, '/');
+	}
+	$host = preg_replace('#^https?://#i', '', $value);
+	$host = preg_replace('#/.*$#', '', $host);
+	$isLocalHost = preg_match('/^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i', $host);
+	if (stripos($value, 'http://') === 0 && !$isLocalHost) {
+		$value = 'https://' . substr($value, 7);
+	}
+	return $value;
+}
+
 function xinng_public_base_url(): string {
 	global $PUBLIC_URL;
 	if (!empty($PUBLIC_URL)) {
-		return (stripos($PUBLIC_URL, 'http') === 0) ? rtrim($PUBLIC_URL, '/') : 'http://' . rtrim($PUBLIC_URL, '/');
+		return rtrim(xinng_normalize_public_url($PUBLIC_URL), '/');
 	}
 	$scheme = 'http';
 	if (
 		(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 		|| strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+		|| strtolower((string)($_SERVER['REQUEST_SCHEME'] ?? '')) === 'https'
 	) {
 		$scheme = 'https';
 	}
 	$host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? ($_SERVER['HTTP_HOST'] ?? 'localhost');
+	$isLocalHost = preg_match('/^(localhost|127\.0\.0\.1|\[::1\]|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i', $host);
+	if (!$isLocalHost && $scheme === 'http') {
+		$scheme = 'https';
+	}
 	$basePath = '';
 	$documentRoot = !empty($_SERVER['DOCUMENT_ROOT']) ? realpath((string)$_SERVER['DOCUMENT_ROOT']) : false;
 	$appRoot = realpath(__DIR__);
@@ -315,6 +499,34 @@ function xinng_public_base_url(): string {
 		$basePath = $relative !== '' ? '/' . $relative : '';
 	}
 	return rtrim($scheme . '://' . $host . $basePath, '/');
+}
+
+function xinng_migrate_http_public_urls(PDO $pdo): void {
+	$base = xinng_public_base_url();
+	$host = preg_replace('#^https?://#i', '', $base);
+	$host = preg_replace('#/.*$#', '', $host);
+	if ($host === '') return;
+	$httpBase = 'http://' . $host;
+	$httpsBase = 'https://' . $host;
+	$tables = [
+		['qr_codes', 'destination_url'],
+		['short_links', 'destination_url'],
+		['qr_codes', 'qr_image_url'],
+	];
+	foreach ($tables as [$table, $column]) {
+		$stmt = $pdo->prepare("SELECT id, {$column} FROM {$table} WHERE {$column} LIKE ?");
+		$stmt->execute(['http://%']);
+		while ($row = $stmt->fetch()) {
+			$url = (string)($row[$column] ?? '');
+			if ($url === '') continue;
+			$normalized = preg_replace('#^http://#i', 'https://', $url);
+			if ($normalized === $url) continue;
+			if (stripos($normalized, $httpsBase) === 0 || stripos($normalized, 'https://') === 0) {
+				$up = $pdo->prepare("UPDATE {$table} SET {$column} = ? WHERE id = ?");
+				$up->execute([$normalized, (int)$row['id']]);
+			}
+		}
+	}
 }
 
 function xinng_short_url(string $back_half): string {
@@ -539,7 +751,7 @@ function xinng_ensure_short_link_tables(PDO $pdo): void {
 	$pdo->exec("
 		CREATE TABLE IF NOT EXISTS short_links (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-			user_id BIGINT UNSIGNED NOT NULL,
+			user_id BIGINT UNSIGNED NULL,
 			title VARCHAR(150) NOT NULL,
 			destination_url TEXT NOT NULL,
 			back_half VARCHAR(64) NOT NULL,
@@ -555,6 +767,11 @@ function xinng_ensure_short_link_tables(PDO $pdo): void {
 			INDEX idx_short_links_deleted_at (deleted_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	");
+
+	$userIdColumn = $pdo->query("SHOW COLUMNS FROM short_links LIKE 'user_id'")->fetch(PDO::FETCH_ASSOC);
+	if ($userIdColumn && strtoupper((string)$userIdColumn['Null']) !== 'YES') {
+		$pdo->exec('ALTER TABLE short_links MODIFY user_id BIGINT UNSIGNED NULL');
+	}
 
 	$pdo->exec("
 		CREATE TABLE IF NOT EXISTS short_link_clicks (
@@ -761,6 +978,8 @@ function xinng_ensure_page_qr_code(PDO $pdo, int $user_id, int $page_id, string 
 }
 
 function xinng_qr_data_url_for_row(array $qr): string {
+	$backHalf = trim((string)($qr['back_half'] ?? ''));
+	if ($backHalf !== '') return xinng_short_url($backHalf);
 	$destination = trim((string)($qr['destination_url'] ?? ''));
 	if ($destination !== '') return $destination;
 	return xinng_qr_scan_url((int)($qr['id'] ?? 0));

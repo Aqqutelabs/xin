@@ -2,14 +2,6 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-
-$user_id = (int) $_SESSION['user_id'];
 $pdo = get_db_connection();
 if (!$pdo) {
 	http_response_code(500);
@@ -18,7 +10,6 @@ if (!$pdo) {
 }
 
 xinng_ensure_short_link_tables($pdo);
-xinng_ensure_credit_tables($pdo);
 
 function short_link_payload(): array {
 	$raw = file_get_contents('php://input');
@@ -55,16 +46,25 @@ if ($method === 'POST' && !empty($payload['_method'])) {
 }
 
 try {
+	$user_id = xinng_public_api_account_user_id($pdo, $payload);
+	if ($user_id <= 0) {
+		http_response_code(422);
+		echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+		exit;
+	}
+
+	$stmt = $pdo->prepare('SELECT 1 FROM users WHERE id = ? LIMIT 1');
+	$stmt->execute([$user_id]);
+	if (!$stmt->fetchColumn()) {
+		http_response_code(404);
+		echo json_encode(['ok' => false, 'error' => 'user_not_found']);
+		exit;
+	}
+
 	if ($method === 'GET') {
 		$stmt = $pdo->prepare('SELECT id, title, destination_url, back_half, status, click_count, created_at, updated_at FROM short_links WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC');
 		$stmt->execute([$user_id]);
 		echo json_encode(['ok' => true, 'short_links' => array_map('short_link_row', $stmt->fetchAll())]);
-		exit;
-	}
-
-	if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
-		http_response_code(403);
-		echo json_encode(['ok' => false, 'error' => 'csrf']);
 		exit;
 	}
 
@@ -83,16 +83,13 @@ try {
 			exit;
 		}
 		if ($title === '') $title = $backHalf['back_half'];
-		if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-			http_response_code(402);
-			echo json_encode(['ok' => false, 'error' => 'insufficient_credits']);
-			exit;
-		}
 
 		$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 		$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
-		xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $pdo->lastInsertId());
-		$row = current_user_short_link($pdo, (int)$pdo->lastInsertId(), $user_id);
+		$shortLinkId = (int)$pdo->lastInsertId();
+		$stmt = $pdo->prepare('SELECT * FROM short_links WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+		$stmt->execute([$shortLinkId]);
+		$row = $stmt->fetch() ?: null;
 		echo json_encode(['ok' => true, 'short_link' => short_link_row($row)]);
 		exit;
 	}
@@ -134,15 +131,10 @@ try {
 				exit;
 			}
 			if ($title === '') $title = $backHalf['back_half'];
-			if (xinng_ensure_credit_balance($pdo, $user_id) < 1) {
-				http_response_code(402);
-				echo json_encode(['ok' => false, 'error' => 'insufficient_credits']);
-				exit;
-			}
 			$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 			$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
-			xinng_charge_credits($pdo, $user_id, 1, 'Create short link', 'short-link:' . $pdo->lastInsertId());
-			$newRow = current_user_short_link($pdo, (int)$pdo->lastInsertId(), $user_id);
+			$shortLinkId = (int)$pdo->lastInsertId();
+			$newRow = current_user_short_link($pdo, $shortLinkId, $user_id);
 			echo json_encode(['ok' => true, 'created_new' => true, 'short_link' => short_link_row($newRow)]);
 			exit;
 		}

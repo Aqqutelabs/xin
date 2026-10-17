@@ -2,7 +2,6 @@
 require_once __DIR__.'/config.php';
 session_start();
 $errors = [];
-$success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
@@ -34,11 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     xinng_ensure_short_link_tables($pdo);
                     xinng_ensure_page_builder_tables($pdo);
                     xinng_ensure_credit_tables($pdo);
+                    xinng_ensure_api_token_table($pdo);
                     $pdo->beginTransaction();
 
                     $stmt = $pdo->prepare('INSERT INTO users (uuid, name, email, password_hash, credit_balance, credits_purchased_total, credits_used_total, created_at, updated_at) VALUES (UUID(), ?, ?, ?, 1000, 0, 0, NOW(), NOW())');
                     $stmt->execute([$name, $email, $hash]);
                     $newId = $pdo->lastInsertId();
+                    $apiToken = xinng_issue_api_token($pdo, (int)$newId);
 
                     $stmt = $pdo->prepare('INSERT INTO credit_transactions (user_id, type, amount, reason, reference, created_at) VALUES (?, "signup_bonus", 1000, "Signup bonus", "signup", NOW())');
                     $stmt->execute([$newId]);
@@ -85,6 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $_SESSION['user_id'] = $newId;
                     $_SESSION['user_name'] = $name;
+                    $_SESSION['new_api_token'] = $apiToken;
 
                     if (!empty($_SESSION['pending_qr'])) {
                         $savedId = xinng_persist_pending_qr($pdo, $_SESSION['pending_qr'], $newId);
@@ -140,10 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <p class="small">Create your account and make room for what you do.</p>
       </div>
 
-      <?php if ($success): ?>
-        <div class="notice" role="status">Account created. You can now <a href="signin.php">sign in</a>.</div>
-      <?php endif; ?>
-
       <?php foreach ($errors as $err): ?>
         <div class="error" role="alert"><?= htmlspecialchars($err) ?></div>
       <?php endforeach; ?>
@@ -197,6 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const input = document.getElementById('slug-input');
     const status = document.getElementById('slug-status');
     const submit = document.querySelector('button[type="submit"]');
+    if (!input || !status || !submit) return;
+
     let last = '';
     let timer = null;
     const reserved = ['login','signin','sign-in','register','signup','sign-up','dashboard','admin','api','settings','links','qr','qrcodes','insights','account','billing','support','help','logout','assets','data','uploads','includes','actions','controllers','page','pages','profile','profiles','u','l','tools','teleprompter','color-scheme'];

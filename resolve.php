@@ -1,7 +1,14 @@
 <?php
 require_once __DIR__ . '/config.php';
 
-$back_half = xinng_normalize_back_half($_GET['back_half'] ?? '');
+$raw_back_half = (string)($_GET['back_half'] ?? '');
+if (!preg_match('/^[A-Za-z0-9_-]{3,64}$/D', $raw_back_half)) {
+	http_response_code(404);
+	echo 'Not found';
+	exit;
+}
+
+$back_half = xinng_normalize_back_half($raw_back_half);
 if ($back_half === null) {
 	http_response_code(404);
 	echo 'Not found';
@@ -29,7 +36,8 @@ if ($shortLink) {
 		$referer = $_SERVER['HTTP_REFERER'] ?? null;
 
 		$stmt = $pdo->prepare('INSERT INTO short_link_clicks (short_link_id, user_id, ip_hash, user_agent, referer, clicked_at) VALUES (?, ?, ?, ?, ?, NOW())');
-		$stmt->execute([(int)$shortLink['id'], (int)$shortLink['user_id'], $ipHash, $userAgent, $referer]);
+		$ownerId = $shortLink['user_id'] !== null ? (int)$shortLink['user_id'] : null;
+		$stmt->execute([(int)$shortLink['id'], $ownerId, $ipHash, $userAgent, $referer]);
 
 		$stmt = $pdo->prepare('UPDATE short_links SET click_count = click_count + 1, updated_at = NOW() WHERE id = ?');
 		$stmt->execute([(int)$shortLink['id']]);
@@ -47,7 +55,7 @@ $page = $stmt->fetch();
 if ($page) {
 	$_GET['slug'] = $back_half;
 	$blocks = [];
-	$stmtBlocks = $pdo->prepare('SELECT id, title, description, type, destination_url FROM page_blocks WHERE page_id = ? AND deleted_at IS NULL ORDER BY position ASC, id ASC');
+	$stmtBlocks = $pdo->prepare('SELECT id, title, description, type, destination_url, image_path, is_active FROM page_blocks WHERE page_id = ? AND deleted_at IS NULL ORDER BY position ASC, id ASC');
 	$stmtBlocks->execute([(int)$page['id']]);
 	$blocks = $stmtBlocks->fetchAll(PDO::FETCH_ASSOC) ?: [];
 	require __DIR__ . '/public_page.php';

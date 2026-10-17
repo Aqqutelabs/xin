@@ -11,6 +11,9 @@ This project includes password reset and SMTP support. Follow these steps before
   - `GMAIL_USER`, `GMAIL_PASS`, `GMAIL_FROM` (or SMTP_* settings)
   - `NOWPAYMENTS_API_KEY`, `NOWPAYMENTS_IPN_SECRET`
   - `NOWPAYMENTS_PRICE_CURRENCY=NGN` (use a currency supported by your NOWPayments account)
+  - `GEMINI_API_KEY` and optional `GEMINI_MODEL` for AI page drafts
+  - `DEEPSEEK_API_KEY` and optional `DEEPSEEK_MODEL` for AI page drafts
+  - `AI_DEFAULT_PROVIDER=gemini`, `AI_MAX_PROMPT_LENGTH=3000`, and `AI_PAGE_GENERATION_COST=5`
 
 2. Composer dependencies
 - On the server (or locally before upload) run:
@@ -44,7 +47,12 @@ composer install --no-dev --prefer-dist
 8. Database migrations
 - The app will create needed tables on demand via helper functions. Review schema in `config.php`.
 
-9. Test
+9. API access
+- API endpoints do not require authentication or CSRF tokens. Account-scoped requests accept `user_id` (or `account_id`) in the query string or JSON body.
+- The API does not verify account ownership: callers can access and modify data for any supplied user ID. Do not expose these endpoints to untrusted clients.
+- Create an account with `POST /api/signup.php` using JSON fields `name`, `email`, and `password`; `slug` is optional. A successful response is `201` and includes an API token, but API access does not require that token.
+
+10. Test
 - Use the included `test_mail.php` to verify SMTP after config.
 
 If you want, I can prepare a `deploy.md` with step-by-step cPanel instructions.

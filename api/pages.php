@@ -2,14 +2,6 @@
 require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-if (empty($_SESSION['user_id'])) {
-	http_response_code(401);
-	echo json_encode(['ok' => false, 'error' => 'auth']);
-	exit;
-}
-
-$user_id = (int)$_SESSION['user_id'];
 $pdo = get_db_connection();
 if (!$pdo) {
 	http_response_code(500);
@@ -420,6 +412,12 @@ function sanitize_corporate_metadata($raw): array {
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $payload = pages_payload();
+$user_id = xinng_public_api_user_id($payload);
+if ($user_id <= 0) {
+	http_response_code(422);
+	echo json_encode(['ok' => false, 'error' => 'missing_user_id']);
+	exit;
+}
 $requestedPageType = $payload['page_type'] ?? $payload['pageType'] ?? $payload['type'] ?? 'creator';
 if ($method === 'POST' && !empty($payload['_method'])) $method = strtoupper((string)$payload['_method']);
 
@@ -452,28 +450,15 @@ try {
 		exit;
 	}
 
-	if (!verify_csrf_token($payload['csrf_token'] ?? null)) {
-		http_response_code(403);
-		echo json_encode(['ok' => false, 'error' => 'csrf']);
-		exit;
-	}
-
 	if ($method === 'POST') {
 		$pageType = normalize_page_type($requestedPageType);
 		$defaults = page_type_defaults($pageType);
 		$title = trim((string)($payload['title'] ?? $defaults['title']));
 		if ($title === '') $title = $defaults['title'];
 		$slug = unique_page_slug($pdo, $payload['slug'] ?? ($title ?: 'page'));
-		$creditBalance = xinng_ensure_credit_balance($pdo, $user_id);
-		if ($creditBalance < 1) {
-			http_response_code(402);
-			echo json_encode(['ok' => false, 'error' => 'insufficient_credits']);
-			exit;
-		}
 		$stmt = $pdo->prepare('INSERT INTO pages (user_id, page_type, corporate_metadata, slug, title, description, bio, is_published, status, theme, layout, font, title_color, description_color, header_mode, header_color, background_mode, background_color, block_shape, block_shadow, block_color, block_text_color, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, "published", ?, ?, "system", "#26282C", "#26282C", "color", ?, "color", ?, "rounded", "soft", ?, ?, NOW(), NOW(), NOW())');
 		$stmt->execute([$user_id, $pageType, json_encode($defaults['corporate'] ?? [], JSON_UNESCAPED_SLASHES), $slug, $title, $defaults['description'], $defaults['description'], $defaults['theme'], $defaults['layout'], $defaults['header_color'], $defaults['background_color'], $defaults['block_color'], $defaults['block_text_color']]);
 		$id = (int)$pdo->lastInsertId();
-		xinng_charge_credits($pdo, $user_id, 1, 'Create page', 'page:' . $id);
 		if ($pageType === 'corporate') {
 			xinng_save_corporate_page_data($pdo, $id, $user_id, sanitize_corporate_metadata($defaults['corporate'] ?? []));
 		}
@@ -521,8 +506,8 @@ try {
 			json_encode($corporateMetadata, JSON_UNESCAPED_SLASHES),
 			$slugCheck['slug'],
 			substr((string)($state['title'] ?? ''), 0, 150),
-			substr((string)($state['description'] ?? ''), 0, 255),
-			substr((string)($state['description'] ?? ''), 0, 255),
+			mb_substr((string)($state['description'] ?? ''), 0, 255, 'UTF-8'),
+			mb_substr((string)($state['description'] ?? ''), 0, 255, 'UTF-8'),
 			$state['profile_image'] ?? null,
 			$state['profile_image'] ?? null,
 			$state['theme'] ?? 'default',
