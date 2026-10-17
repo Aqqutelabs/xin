@@ -54,7 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorMessage = 'Username, email, password, and proxy are required.';
             http_response_code(422);
         } elseif (TWITTERAPI_IO_API_KEY === '' || X_TOKEN_ENCRYPTION_KEY === '') {
-            $errorMessage = 'TwitterAPI.io is not configured on this server.';
+            error_log('X account connection attempted while the provider configuration is incomplete.');
+            $errorMessage = 'X account connections are temporarily unavailable. Please try again later.';
             http_response_code(503);
         } else {
             try {
@@ -73,8 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ../../dashboard.php?x_connected=1#x-account-connection', true, 302);
                 exit;
             } catch (XApiException $error) {
+                error_log('X account provider error (' . $error->status . '): ' . $error->getMessage());
                 http_response_code($error->status);
-                $errorMessage = $error->getMessage();
+                $errorMessage = 'We could not connect that X account. Check the details and try again.';
             } catch (Throwable $error) {
                 error_log('TwitterAPI.io account connection failed: ' . $error->getMessage());
                 http_response_code(503);
@@ -109,12 +111,12 @@ if (!$configured && http_response_code() < 400) http_response_code(503);
 <body>
 <main>
     <h1>Connect your X account</h1>
-    <p>TwitterAPI.io uses your X account credentials to create a posting session. Requests are sent from this server using its configured API key.</p>
+    <p>Connect your account securely to publish approved content from Xinng.</p>
     <?php if ($errorMessage !== ''): ?><p class="error" role="alert"><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
     <?php if (!$configured): ?>
-        <p class="error">TwitterAPI.io is not configured on this server. Set <code>TWITTERAPI_IO_API_KEY</code> and <code>X_TOKEN_ENCRYPTION_KEY</code>.</p>
+        <p class="error">X account connections are temporarily unavailable. Please try again later.</p>
     <?php else: ?>
-        <div class="notice">Your X password and 2FA seed are sent to TwitterAPI.io for login and are not stored by Xinng. A residential proxy is required by the provider. Only the returned login cookie and proxy are stored encrypted.</div>
+        <div class="notice">Your sign-in details are used only to establish the connection and are not stored by Xinng. Connection information is encrypted.</div>
         <form method="post" action="connect.php?user_id=<?= (int)$userId ?>" autocomplete="off">
             <input type="hidden" name="user_id" value="<?= (int)$userId ?>">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">

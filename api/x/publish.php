@@ -35,9 +35,9 @@ try {
         x_publish_error(403, 'The request expired. Reload the dashboard and try again.');
     }
     $userId = xinng_public_api_user_id($body);
-    if ($userId <= 0) x_publish_error(422, 'Provide a user_id.');
+    if ($userId <= 0) x_publish_error(401, 'Sign in again to continue.');
     $pdo = get_db_connection();
-    if (!$pdo) x_publish_error(503, 'Database unavailable.');
+    if (!$pdo) x_publish_error(503, 'Publishing is temporarily unavailable.');
     xinng_ensure_x_account_tables($pdo);
     $store = new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY);
     $loginCookie = $store->sessionCookie($userId);
@@ -49,7 +49,8 @@ try {
         'url' => 'https://x.com/i/status/' . rawurlencode($post['id']),
     ]], JSON_THROW_ON_ERROR);
 } catch (XApiException $error) {
-    x_publish_error($error->status, $error->getMessage());
+    error_log('X publish provider error (' . $error->status . '): ' . $error->getMessage());
+    x_publish_error($error->status >= 500 ? 503 : 422, 'We could not publish that post. Please check it and try again.');
 } catch (JsonException) {
     x_publish_error(422, 'Invalid post request.');
 } catch (Throwable $error) {

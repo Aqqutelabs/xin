@@ -61,10 +61,7 @@ $packages = xinng_credit_packages();
 $notifications = [];
 $unreadNotificationCount = 0;
 $xAccount = null;
-$xMissingConfig = [];
-if (TWITTERAPI_IO_API_KEY === '') $xMissingConfig[] = 'TWITTERAPI_IO_API_KEY';
-if (X_TOKEN_ENCRYPTION_KEY === '') $xMissingConfig[] = 'X_TOKEN_ENCRYPTION_KEY';
-$xConfigured = $xMissingConfig === [];
+$xConfigured = TWITTERAPI_IO_API_KEY !== '' && X_TOKEN_ENCRYPTION_KEY !== '';
 
 if ($pdo) {
     xinng_ensure_short_link_tables($pdo);
@@ -271,9 +268,9 @@ $completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($a
                 <button class="ghost-btn" type="button" id="x-disconnect" data-csrf="<?= e(csrf_token()) ?>">Disconnect X</button>
               <?php else: ?>
                 <strong>Connect X</strong>
-                <p><?= $xConfigured ? 'Connect your account to publish Xinng pages and creator results.' : 'Set ' . e(implode(' and ', $xMissingConfig)) . ' in the server .env to enable X account connections.' ?></p>
+                <p><?= $xConfigured ? 'Connect your account to publish Xinng pages and creator results.' : 'X account connections are not available right now. You can continue using the rest of your workspace.' ?></p>
                 <a class="ghost-btn" href="pages.php"><span class="label-icon"><i class="fa-regular fa-file-lines"></i></span>View pages</a>
-                <?php if ($xConfigured): ?><a class="primary-btn" href="api/x/connect.php?user_id=<?= (int)$user_id ?>"><span class="label-icon"><i class="fa-brands fa-x-twitter"></i></span>Connect X account</a><?php else: ?><span class="dashboard-action-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> X connection unavailable</span><?php endif; ?>
+                <?php if ($xConfigured): ?><a class="primary-btn" href="api/x/connect.php?user_id=<?= (int)$user_id ?>"><span class="label-icon"><i class="fa-brands fa-x-twitter"></i></span>Connect X account</a><?php else: ?><span class="dashboard-action-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Available soon</span><?php endif; ?>
               <?php endif; ?>
             </div>
           </div>

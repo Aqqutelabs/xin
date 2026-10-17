@@ -26,9 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     x_analytics_error(405, 'Use GET.');
 }
 $pdo = get_db_connection();
-if (!$pdo) x_analytics_error(503, 'Database unavailable.');
+if (!$pdo) x_analytics_error(503, 'Analytics are temporarily unavailable.');
 $userId = xinng_public_api_user_id();
-if ($userId <= 0) x_analytics_error(422, 'Provide a user_id.');
+if ($userId <= 0) x_analytics_error(401, 'Sign in again to continue.');
 try {
     xinng_ensure_x_account_tables($pdo);
     xinng_ensure_x_post_metric_tables($pdo);
@@ -44,7 +44,8 @@ try {
         'display_name' => $account['display_name'],
     ], 'posts' => $analytics->latest($userId)], JSON_THROW_ON_ERROR);
 } catch (XApiException $error) {
-    x_analytics_error($error->status, $error->getMessage());
+    error_log('X analytics provider error (' . $error->status . '): ' . $error->getMessage());
+    x_analytics_error($error->status >= 500 ? 503 : 422, 'We could not refresh X analytics right now. Please try again.');
 } catch (JsonException) {
     x_analytics_error(502, 'X returned invalid analytics data.');
 } catch (Throwable $error) {
