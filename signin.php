@@ -1,40 +1,87 @@
 <?php
 require_once __DIR__.'/config.php';
+
+/* Temporary authentication diagnostics. Contains stage names and timings only:
+ * never credentials, tokens, email addresses, session IDs, or request bodies. */
+$authTraceEnabled = $APP_ENV !== 'production' || xinng_env('XINNG_AUTH_DIAGNOSTICS') === '1';
+$authTraceId = bin2hex(random_bytes(6));
+$authTraceStarted = microtime(true);
+function xinng_auth_trace(string $stage, array $context = []): void {
+    global $authTraceEnabled, $authTraceId, $authTraceStarted;
+    if (!$authTraceEnabled) return;
+    $logDir = __DIR__ . '/logs';
+    if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
+    $safe = array_intersect_key($context, array_flip(['result', 'driver_code', 'user_found', 'session_status']));
+    $record = [
+        'time' => date(DATE_ATOM),
+        'request_id' => $authTraceId,
+        'stage' => $stage,
+        'elapsed_ms' => round((microtime(true) - $authTraceStarted) * 1000, 1),
+        'memory_bytes' => memory_get_usage(true),
+    ] + $safe;
+    error_log(json_encode($record, JSON_UNESCAPED_SLASHES) . PHP_EOL, 3, $logDir . '/auth-diagnostic.log');
+}
+register_shutdown_function(static function (): void {
+    $error = error_get_last();
+    xinng_auth_trace('request.shutdown', ['result' => $error ? 'php_error_' . $error['type'] : 'clean']);
+});
+
+xinng_auth_trace('bootstrap.complete');
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    xinng_auth_trace('post.received');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     if ($email === '' || $password === '') {
+        xinng_auth_trace('input.rejected', ['result' => 'missing_fields']);
         $errors[] = 'Both email and password are required.';
     } else {
+        xinng_auth_trace('database.connect.start');
         $pdo = get_db_connection();
+        xinng_auth_trace('database.connect.finish', ['result' => $pdo ? 'connected' : 'failed']);
         if ($pdo) {
-            xinng_ensure_credit_tables($pdo);
+            xinng_auth_trace('user.query.start');
             $stmt = $pdo->prepare('SELECT id, email, password_hash, name FROM users WHERE email = ? LIMIT 1');
             $stmt->execute([$email]);
             $user = $stmt->fetch();
+            xinng_auth_trace('user.query.finish', ['user_found' => $user ? 'yes' : 'no']);
+            xinng_auth_trace('password.verify.start');
             if ($user && password_verify($password, $user['password_hash'])) {
-              session_start();
+              xinng_auth_trace('password.verify.finish', ['result' => 'valid']);
+              xinng_auth_trace('session.start.begin', ['session_status' => (string)session_status()]);
+              if (session_status() !== PHP_SESSION_ACTIVE && !session_start()) {
+                throw new RuntimeException('Unable to start the authenticated session.');
+              }
+              session_regenerate_id(true);
               $_SESSION['user_id'] = $user['id'];
               $_SESSION['user_name'] = $user['name'];
+              xinng_auth_trace('session.write.complete', ['session_status' => (string)session_status()]);
 
               $device = 'Web browser';
               $location = 'Current session';
               $time = date('Y-m-d H:i:s');
-              xinng_create_notification($pdo, (int)$user['id'], 'security', 'Signed in successfully', 'Your account was accessed from this browser session.', 'dashboard.php');
-              xinng_send_login_alert_email((int)$user['id'], $user['email'] ?? $email, $user['name'], $device, $location, $time);
-
+              $redirect = 'dashboard.php';
               if (!empty($_SESSION['pending_qr'])) {
+                xinng_auth_trace('pending_qr.persist.start');
                 $savedId = xinng_persist_pending_qr($pdo, $_SESSION['pending_qr'], (int)$user['id']);
-                if ($savedId > 0) {
-                  $_SESSION['pending_qr']['saved_qr_id'] = $savedId;
-                }
-                header('Location: qr_codes.php');
-                exit;
+                if ($savedId > 0) $_SESSION['pending_qr']['saved_qr_id'] = $savedId;
+                $redirect = 'qr_codes.php';
+                xinng_auth_trace('pending_qr.persist.finish', ['result' => $savedId > 0 ? 'saved' : 'not_saved']);
               }
-              header('Location: dashboard.php');
+              session_write_close();
+              xinng_auth_trace('session.lock.released', ['session_status' => (string)session_status()]);
+
+              xinng_auth_trace('notification.create.start');
+              xinng_create_notification($pdo, (int)$user['id'], 'security', 'Signed in successfully', 'Your account was accessed from this browser session.', 'dashboard.php');
+              xinng_auth_trace('notification.create.finish');
+              xinng_auth_trace('login_alert.send.start');
+              xinng_send_login_alert_email((int)$user['id'], $user['email'] ?? $email, $user['name'], $device, $location, $time);
+              xinng_auth_trace('login_alert.send.finish');
+              xinng_auth_trace('redirect.send', ['result' => $redirect]);
+              header('Location: ' . $redirect, true, 303);
               exit;
             } else {
+                xinng_auth_trace('password.verify.finish', ['result' => 'invalid']);
                 $errors[] = 'Invalid credentials.';
             }
         } else {

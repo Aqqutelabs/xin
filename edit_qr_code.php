@@ -24,6 +24,12 @@ function e($value): string {
 	return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+function qr_editor_initials(string $name): string {
+	$clean = preg_replace('/[^A-Za-z0-9 ]/', '', $name);
+	$parts = array_values(array_filter(explode(' ', trim($clean))));
+	return strtoupper(count($parts) >= 2 ? substr($parts[0], 0, 1) . substr($parts[1], 0, 1) : substr($clean ?: 'X', 0, 2));
+}
+
 function load_qr(PDO $pdo, int $id, int $user_id): ?array {
 	$stmt = $pdo->prepare('SELECT q.*, p.slug AS profile_slug FROM qr_codes q LEFT JOIN pages p ON p.id = q.profile_page_id WHERE q.id = ? AND q.user_id = ? AND q.deleted_at IS NULL LIMIT 1');
 	$stmt->execute([$id, $user_id]);
@@ -149,12 +155,25 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit QR Code - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-qr-editor-workspace">
 </head>
-<body class="builder-page">
+<body class="builder-page workspace-screen qr-editor-screen">
+  <div class="qr-editor-layout">
+  <aside class="sidebar" aria-label="Dashboard navigation">
+    <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
+    <div class="account"><div class="account-main"><span class="avatar"><?= e(qr_editor_initials($user_name)) ?></span><span><?= e(strtolower(preg_replace('/[^a-z0-9]+/i', '', $user_name ?: 'user'))) ?></span><span aria-hidden="true">v</span></div><a class="icon-btn" href="logout.php" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
+    <nav><div class="nav-section"><div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
+      <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
+      <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
+      <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
+      <a class="nav-item active" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
+      <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
+      <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-wallet"></i></span>Credits</a>
+    </div></nav>
+  </aside>
+  <div class="qr-editor-main">
   <header class="builder-topbar">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <a class="xinng-brand xinng-brand--small" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
       <a class="ghost-btn" href="qr_codes.php"><i class="fa-solid fa-arrow-left"></i>&nbsp;Back to QR Codes</a>
       <div class="builder-url"><i class="fa-solid fa-qrcode"></i><strong id="builder-url-text"><?= e($previewTitle) ?></strong></div>
     </div>
@@ -282,7 +301,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
 
     <aside class="builder-preview">
       <div class="builder-panel" style="width:320px;">
-        <strong>Live Preview</strong>
+        <div class="qr-preview-heading"><span>LIVE PREVIEW</span><small>Updates as you edit</small></div>
         <div class="qr-preview-card" id="qr-preview-card">
           <div class="qr-preview-frame" id="qr-preview-frame">
             <div id="qr-preview-canvas" aria-label="<?= e($previewTitle) ?> QR preview"></div>
@@ -300,6 +319,8 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
       </div>
     </aside>
   </main>
+  </div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
   <script>
   (function(){

@@ -19,7 +19,13 @@ $user_name = $_SESSION['user_name'] ?? 'User';
 function e($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function pages_initials(string $name): string { return strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $name) ?: 'X', 0, 2)); }
 function pages_status_label(array $page): string { return (($page['status'] ?? '') === 'published' || !empty($page['is_published'])) ? 'Published' : 'Draft'; }
-function pages_type_label(array $page): string { return ($page['page_type'] ?? 'creator') === 'corporate' ? 'Company Page' : 'Personal Page'; }
+function pages_type_label(array $page): string {
+	return match ($page['page_type'] ?? 'creator') {
+		'corporate' => 'Company Page',
+		'event' => 'Event Page',
+		default => 'Personal Page',
+	};
+}
 
 $pdo = get_db_connection();
 $pages = [];
@@ -41,7 +47,7 @@ if ($pdo) {
 }
 
 $activePage = $pages[0] ?? null;
-$displayPageType = ($activePage['page_type'] ?? 'creator') === 'corporate' ? 'corporate' : 'creator';
+$displayPageType = in_array($activePage['page_type'] ?? 'creator', ['corporate', 'event'], true) ? $activePage['page_type'] : 'creator';
 $displayTitle = $activePage['title'] ?? 'Your Xinng page';
 $displayDescription = $activePage['description'] ?? ($activePage['bio'] ?? 'Create a mobile-first landing page for your links, QR codes, and campaigns.');
 $displayUrl = $activePage ? xinng_short_url($activePage['slug']) : xinng_short_url('your-page');
@@ -57,15 +63,9 @@ $csrf = csrf_token();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pages - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261016-event-page-modal">
 </head>
-<body>
-  <div class="upgrade-bar">
-    <span class="spark"><i class="fa-solid fa-bolt"></i></span>
-    <span>Elevate your pages with better themes and styles.</span>
-    <a class="upgrade-pill" href="#">Lightning Upgrade</a>
-  </div>
-
+<body class="pages-screen">
   <div class="dashboard">
     <aside class="sidebar" aria-label="Dashboard navigation">
       <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
@@ -83,6 +83,7 @@ $csrf = csrf_token();
           <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
           <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
           <a class="nav-item active" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
+          <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
           <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
           <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
         </div>
@@ -100,9 +101,10 @@ $csrf = csrf_token();
       <header class="main-header">
         <div class="header-title">
           <h1>Pages</h1>
-          <span>Create mobile landing pages at <?= e(str_replace(['http://','https://'], '', xinng_short_url('your-page'))) ?></span>
+          <span>Create and manage your mobile landing pages.</span>
         </div>
         <div class="header-actions">
+          <button class="primary-btn header-create-page" id="header-create-page" type="button"><i class="fa-solid fa-plus"></i>Create page</button>
           <a class="icon-btn" href="#" aria-label="Settings"><i class="fa-solid fa-gear"></i></a>
           <a class="icon-btn" href="?action=logout" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
         </div>
@@ -120,10 +122,10 @@ $csrf = csrf_token();
 
           <div class="model-note" id="pages-model-note">
             <button class="model-note-close" aria-label="Dismiss notice">x</button>
-            <strong>Xinng Pages includes Personal Page and Company Page.</strong> Both use the same builder, blocks, QR tracking, short links, and public renderer.
+            <strong>Xinng Pages includes Creator, Company, and Event pages.</strong> They share the same builder, QR tracking, short links, and public renderer.
           </div>
 
-          <button class="primary-btn add-btn" id="create-page" type="button"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Create Page</button>
+          <button class="primary-btn add-btn" id="create-page" type="button"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Create a new page</button>
 
           <div class="secondary-row">
             <a class="ghost-btn" href="#"><span class="label-icon"><i class="fa-solid fa-layer-group"></i></span>Collections</a>
@@ -144,7 +146,7 @@ $csrf = csrf_token();
                 $title = $page['title'] ?: $page['slug'];
                 $description = $page['description'] ?: ($page['bio'] ?? '');
               ?>
-              <article class="link-card page-link-card<?= $index === 0 ? ' selected' : '' ?>" data-title="<?= e($title) ?>" data-description="<?= e($description) ?>" data-url="<?= e($url) ?>" data-page-type="<?= e(($page['page_type'] ?? 'creator') === 'corporate' ? 'corporate' : 'creator') ?>" data-header="<?= e($page['header_color'] ?: '#26282C') ?>" data-block="<?= e($page['block_color'] ?: '#0A9994') ?>">
+              <article class="link-card page-link-card<?= $index === 0 ? ' selected' : '' ?>" data-title="<?= e($title) ?>" data-description="<?= e($description) ?>" data-url="<?= e($url) ?>" data-page-type="<?= e(in_array($page['page_type'] ?? 'creator', ['corporate', 'event'], true) ? $page['page_type'] : 'creator') ?>" data-header="<?= e($page['header_color'] ?: '#26282C') ?>" data-block="<?= e($page['block_color'] ?: '#0A9994') ?>">
                 <div class="drag" aria-hidden="true">::</div>
                 <div class="page-card-preview" style="--thumb-bg: <?= e($page['header_color'] ?: '#26282C') ?>; --thumb-block: <?= e($page['block_color'] ?: '#0A9994') ?>;">
                   <div class="page-card-preview-head"></div>
@@ -202,9 +204,9 @@ $csrf = csrf_token();
             <h2 id="preview-page-title"><?= e($displayTitle) ?></h2>
             <p id="preview-page-description"><?= e($displayDescription) ?></p>
             <div class="phone-socials"><span>IG</span><span>WA</span><span>X</span></div>
-            <a class="phone-link hero pages-preview-block" id="preview-primary-action" href="#"><strong><?= $displayPageType === 'corporate' ? 'Request Quote' : 'Follow me' ?></strong></a>
-            <a class="phone-link pages-preview-block" id="preview-secondary-action" href="#"><?= $displayPageType === 'corporate' ? 'Download Company Profile' : 'Book me' ?></a>
-            <a class="phone-link pages-preview-block" id="preview-tertiary-action" href="#"><?= $displayPageType === 'corporate' ? 'Book Technical Meeting' : 'Subscribe' ?></a>
+            <a class="phone-link hero pages-preview-block" id="preview-primary-action" href="#"><strong><?= $displayPageType === 'event' ? 'Get tickets' : ($displayPageType === 'corporate' ? 'Request Quote' : 'Follow me') ?></strong></a>
+            <a class="phone-link pages-preview-block" id="preview-secondary-action" href="#"><?= $displayPageType === 'event' ? 'View schedule' : ($displayPageType === 'corporate' ? 'Download Company Profile' : 'Book me') ?></a>
+            <a class="phone-link pages-preview-block" id="preview-tertiary-action" href="#"><?= $displayPageType === 'event' ? 'Venue & details' : ($displayPageType === 'corporate' ? 'Book Technical Meeting' : 'Subscribe') ?></a>
             <div class="phone-brand">xin.ng page preview</div>
           </div>
         </div>
@@ -213,19 +215,32 @@ $csrf = csrf_token();
   </div>
 
   <div class="page-type-modal" id="page-type-modal" hidden>
-    <div class="page-type-dialog" role="dialog" aria-modal="true" aria-labelledbya="page-type-title">
+    <div class="page-type-dialog" role="dialog" aria-modal="true" aria-labelledby="page-type-title">
       <button class="model-notse-close page-type-close" type="button" aria-label="Close">x</button>
-      <h2 id="page-type-title">What are you building?</h2>
+      <div class="page-type-heading">
+        <span class="page-type-kicker">Create a page</span>
+        <h2 id="page-type-title">What are you building?</h2>
+        <p>Choose a starting point. You can customise everything in the builder.</p>
+      </div>
       <div class="page-type-options">
         <button class="page-type-option" type="button" data-page-type="creator">
+          <span class="page-type-icon"><i class="fa-solid fa-user"></i></span>
           <strong>Creator Page</strong>
-          <span>For personal brands, creators, freelancers, consultants, and individuals.</span>
-          <small>Grow audience · Share links · Sell products · Collect bookings to change · Share content</small>
+          <span>Build a personal home for links, content, products, and bookings.</span>
+          <small>Links · Products · Bookings</small>
         </button>
         <button class="page-type-option" type="button" data-page-type="corporate">
+          <span class="page-type-icon"><i class="fa-solid fa-building"></i></span>
           <strong>Company Page</strong>
-          <span>For companies, events, documents, meetings, products, teams, and business inquiries.</span>
-          <small>Get inquiries · Book meetings · Share documents · Promote event · Request quote · Route contacts</small>
+          <span>Present your organisation, services, team, documents, and contact routes.</span>
+          <small>Company profile · Enquiries · Meetings</small>
+        </button>
+        <button class="page-type-option page-type-option--event" type="button" data-page-type="event">
+          <span class="page-type-icon"><i class="fa-solid fa-calendar-days"></i></span>
+          <span class="page-type-badge">Events</span>
+          <strong>Event Page</strong>
+          <span>Publish event details, ticket options, registration, schedule, and venue information.</span>
+          <small>Multiple ticket types · Registration · Check-in</small>
         </button>
       </div>
       <div class="page-title-form" id="page-title-form">
@@ -249,7 +264,7 @@ $csrf = csrf_token();
   <script>
   (function(){
     const csrf = <?= json_encode($csrf) ?>;
-    const createButtons = [document.getElementById('create-page'), document.getElementById('sidebar-create-page')].filter(Boolean);
+    const createButtons = [document.getElementById('create-page'), document.getElementById('header-create-page'), document.getElementById('sidebar-create-page')].filter(Boolean);
     const modal = document.getElementById('page-type-modal');
     const statusBox = document.getElementById('page-create-status');
     const statusTitle = document.getElementById('page-create-status-title');
@@ -291,7 +306,7 @@ $csrf = csrf_token();
       if (pageTypeHidden) pageTypeHidden.value = pageType;
       typeOptions.forEach(option => option.classList.toggle('is-active', option.dataset.pageType === pageType));
       if (titleInput) {
-        const defaultTitle = pageType === 'corporate' ? 'Company Page' : 'Creator Page';
+        const defaultTitle = pageType === 'event' ? 'Event Page' : (pageType === 'corporate' ? 'Company Page' : 'Creator Page');
         if (!titleInput.value.trim()) {
           titleInput.placeholder = defaultTitle;
         }
@@ -300,7 +315,7 @@ $csrf = csrf_token();
       clearStatus();
     }
     async function createPage(pageType, titleOverride) {
-      const defaultTitle = pageType === 'corporate' ? 'Company Page' : 'Creator Page';
+      const defaultTitle = pageType === 'event' ? 'Event Page' : (pageType === 'corporate' ? 'Company Page' : 'Creator Page');
       const trimmedTitle = (titleOverride ?? titleInput?.value ?? '').trim() || defaultTitle;
       if (!trimmedTitle || trimmedTitle === defaultTitle && !titleOverride) {
         showStatus('error', 'Title required', 'Please enter a page title before creating your page.');
@@ -323,7 +338,7 @@ $csrf = csrf_token();
     modal?.querySelector('.page-type-close')?.addEventListener('click', closeTypeModal);
     typeOptions.forEach(option => {
       option.addEventListener('click', () => {
-        setSelectedPageType(option.dataset.pageType === 'corporate' ? 'corporate' : 'creator');
+        setSelectedPageType(['corporate', 'event'].includes(option.dataset.pageType) ? option.dataset.pageType : 'creator');
       });
     });
     titleSubmit?.addEventListener('click', () => {
@@ -342,6 +357,10 @@ $csrf = csrf_token();
         titleSubmit?.click();
       }
     });
+    if (new URLSearchParams(location.search).get('create') === 'event') {
+      openTypeModal();
+      setSelectedPageType('event');
+    }
 
     document.querySelectorAll('.copy-page').forEach(btn => btn.addEventListener('click', async () => {
       try {
@@ -371,9 +390,10 @@ $csrf = csrf_token();
         description.textContent = card.dataset.description || 'Create a mobile-first landing page for your links.';
         url.textContent = (card.dataset.url || '').replace(/^https?:\/\//, '');
         const corporate = card.dataset.pageType === 'corporate';
-        primaryAction.innerHTML = '<strong>' + (corporate ? 'Request Quote' : 'Follow me') + '</strong>';
-        secondaryAction.textContent = corporate ? 'Download Company Profile' : 'Book me';
-        tertiaryAction.textContent = corporate ? 'Book Technical Meeting' : 'Subscribe';
+        const event = card.dataset.pageType === 'event';
+        primaryAction.innerHTML = '<strong>' + (event ? 'Get tickets' : (corporate ? 'Request Quote' : 'Follow me')) + '</strong>';
+        secondaryAction.textContent = event ? 'View schedule' : (corporate ? 'Download Company Profile' : 'Book me');
+        tertiaryAction.textContent = event ? 'Venue & details' : (corporate ? 'Book Technical Meeting' : 'Subscribe');
         screen.style.setProperty('--preview-header', card.dataset.header || '#26282C');
         screen.style.setProperty('--preview-block', card.dataset.block || '#0A9994');
       });

@@ -93,16 +93,10 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>QR Codes - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-workspace-polish">
 </head>
-<body>
-  <div class="upgrade-bar">
-    <span class="spark"><i class="fa-solid fa-bolt"></i></span>
-    <span>Elevate your design with better themes and styles.</span>
-    <a class="upgrade-pill" href="#" aria-label="Upgrade account">Lightning Upgrade</a>
-  </div>
-
-  <div class="dashboard">
+<body class="qr-screen workspace-screen">
+  <div class="dashboard no-preview">
     <aside class="sidebar" aria-label="Dashboard navigation">
       <div class="brand-slot" aria-label="xin.ng brand"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
       <div class="account">
@@ -118,8 +112,10 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
           <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
           <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
           <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
+          <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
           <a class="nav-item active" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
           <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
+          <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-wallet"></i></span>Credits</a>
         </div>
       </nav>
       <div class="setup-card">
@@ -136,9 +132,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
           <h1>QR Codes</h1>
           <span>Create trackable QR assets for your page, links, and campaigns.</span>
         </div>
-        <div class="header-actions">
-          <a class="icon-btn" href="#" aria-label="Settings"><i class="fa-solid fa-gear"></i></a>
-        </div>
+        <div class="header-actions"><button class="primary-btn header-primary" type="button" id="create-qr-code"><i class="fa-solid fa-plus"></i>Create QR code</button></div>
       </header>
 
       <div class="content">
@@ -150,9 +144,13 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
             <div class="stat-card"><strong><?= number_format($totalClicks) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-arrow-pointer"></i></span>Link clicks</span></div>
           </div>
 
-          <button class="primary-btn add-btn centered-action" type="button" id="create-qr-code"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Create QR Code</button>
+          <section class="workspace-intro qr-intro">
+            <div><span class="workspace-eyebrow">QR WORKSPACE</span><h2>One code. A destination you can change anytime.</h2><p>Create branded, trackable QR codes for pages, campaigns, menus, events, and printed materials.</p></div>
+            <button class="secondary-action" type="button" data-create-qr><i class="fa-solid fa-wand-magic-sparkles"></i>Create a QR code</button>
+          </section>
 
-          <div id="qr-code-list">
+          <div class="section-heading"><div><h2>Your QR codes</h2><p>Edit, download, and monitor every code from one place.</p></div><span><?= number_format(count($qrCodes)) ?> total</span></div>
+          <div id="qr-code-list" class="workspace-list">
             <?php foreach ($qrCodes as $qr): ?>
               <?php
                 $isProfile = ($qr['type'] ?? '') === 'profile_page';
@@ -205,27 +203,6 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
       </div>
     </main>
 
-    <aside class="preview" aria-label="Public page preview">
-      <header class="preview-header">
-        <div class="url-pill">
-          <button class="pill-share" aria-label="Share page" title="Share page"><i class="fa-solid fa-share-nodes"></i></button>
-          <a class="label-icon" href="<?= e($displayUrl) ?>" target="_blank" rel="noopener" aria-label="Open public page"><i class="fa-solid fa-mouse-pointer"></i></a>
-          <span class="url-text"><?= e(str_replace(['http://', 'https://'], '', $displayUrl)) ?></span>
-        </div>
-      </header>
-      <div class="preview-body">
-        <div class="phone">
-          <div class="phone-screen">
-            <div class="phone-avatar"><?= e(initials($displayTitle)) ?></div>
-            <h2><?= e($displayTitle) ?></h2>
-            <p><?= e($activePage['bio'] ?? 'Create a smart QR-powered link page you can update anytime.') ?></p>
-            <div class="phone-socials"><span>IG</span><span>WA</span><span>X</span></div>
-            <a class="phone-link hero" href="#"><span class="hero-icon">+</span><strong>Create QR Code</strong></a>
-            <div class="phone-brand">xin.ng QR preview</div>
-          </div>
-        </div>
-      </div>
-    </aside>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
@@ -233,6 +210,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
   (function(){
     const csrf = '<?= e(csrf_token()) ?>';
     const button = document.getElementById('create-qr-code');
+    const secondaryButton = document.querySelector('[data-create-qr]');
     const list = document.getElementById('qr-code-list');
     if (!button || !list) return;
 
@@ -319,13 +297,15 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
       return card;
     }
 
-    button.addEventListener('click', () => {
+    function openQrForm() {
       if (list.querySelector('.qr-card.editing')) return;
       const card = formCard();
-      list.appendChild(card);
+      list.prepend(card);
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
       card.querySelector('input')?.focus();
-    });
+    }
+    button.addEventListener('click', openQrForm);
+    secondaryButton?.addEventListener('click', openQrForm);
 
     list.addEventListener('click', async (event) => {
       const cancel = event.target.closest('.cancel-qr-form');

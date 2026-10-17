@@ -113,6 +113,8 @@ function send_mail_smtp(string $to, string $subject, string $body, bool $isHtml 
 		try {
 			$mail = new \PHPMailer\PHPMailer\PHPMailer(true);
 			$mail->isSMTP();
+			$mail->Timeout = 5;
+			$mail->Timelimit = 8;
 			if (SMTP_HOST !== '') $mail->Host = SMTP_HOST;
 			$mail->SMTPAuth = (SMTP_USER !== '');
 			if (SMTP_USER !== '') $mail->Username = SMTP_USER;
@@ -167,6 +169,7 @@ function send_mail_mailgun_api(string $to, string $subject, string $body, bool $
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
 	curl_setopt($ch, CURLOPT_USERPWD, 'api:' . MAILGUN_API_KEY);
 	curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
 	curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 	$resp = curl_exec($ch);
 	$err = curl_error($ch);
@@ -234,6 +237,8 @@ function get_db_connection(): ?PDO {
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 		PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 		PDO::ATTR_PERSISTENT => false,
+		PDO::ATTR_TIMEOUT => 5,
+		PDO::MYSQL_ATTR_INIT_COMMAND => 'SET SESSION innodb_lock_wait_timeout = 5',
 	];
 	try {
 		$pdo = new PDO($dsn, DB_USER, DB_PASS, $opts);
@@ -401,6 +406,17 @@ function xinng_ensure_credit_balance(PDO $pdo, int $user_id): int {
 	$stmt = $pdo->prepare('SELECT credit_balance FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
 	$stmt->execute([$user_id]);
 	return (int)$stmt->fetchColumn();
+}
+
+function xinng_user_has_paid_access(PDO $pdo, int $user_id): bool {
+	if ($user_id <= 0) return false;
+	try {
+		$stmt = $pdo->prepare('SELECT credits_purchased_total FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+		$stmt->execute([$user_id]);
+		return (int)$stmt->fetchColumn() > 0;
+	} catch (Throwable $e) {
+		return false;
+	}
 }
 
 function xinng_apply_credit_transaction(PDO $pdo, int $user_id, string $type, int $amount, string $reason, ?string $reference = null): bool {
@@ -719,7 +735,6 @@ function xinng_qr_image_url(int $qr_code_id, string $code_color = '#000000', str
 }
 
 function xinng_ensure_page_qr_code(PDO $pdo, int $user_id, int $page_id, string $title, string $destination): int {
-	xinng_ensure_qr_code_tables($pdo);
 	$destination = trim($destination);
 	if ($destination === '' || $page_id <= 0) {
 		return 0;
@@ -1441,14 +1456,14 @@ function xinng_ensure_page_builder_tables(PDO $pdo): void {
 		}
 	}
 	try { $pdo->exec("UPDATE pages SET description = COALESCE(description, bio), status = COALESCE(status, IF(is_published = 1, 'published', 'draft'))"); } catch (PDOException $e) {}
-	try { $pdo->exec("UPDATE pages SET page_type = 'creator' WHERE page_type IS NULL OR page_type NOT IN ('creator', 'corporate')"); } catch (PDOException $e) {}
+	try { $pdo->exec("UPDATE pages SET page_type = 'creator' WHERE page_type IS NULL OR page_type NOT IN ('creator', 'corporate', 'event')"); } catch (PDOException $e) {}
 	// Map common aliases to 'corporate' before forcing unknowns to 'creator'
 	try {
 		$pdo->exec("UPDATE pages SET page_type = 'corporate' WHERE LOWER(page_type) IN ('company','company page','company_page','companypage','corp')");
 	} catch (PDOException $e) {}
-	try { $pdo->exec("UPDATE pages SET page_type = 'creator' WHERE page_type IS NULL OR page_type NOT IN ('creator', 'corporate')"); } catch (PDOException $e) {}
+	try { $pdo->exec("UPDATE pages SET page_type = 'creator' WHERE page_type IS NULL OR page_type NOT IN ('creator', 'corporate', 'event')"); } catch (PDOException $e) {}
 	// Tighten schema: make page_type an ENUM to prevent invalid values (best-effort)
-	try { $pdo->exec("ALTER TABLE pages MODIFY page_type ENUM('creator','corporate') NOT NULL DEFAULT 'creator'"); } catch (PDOException $e) {}
+	try { $pdo->exec("ALTER TABLE pages MODIFY page_type ENUM('creator','corporate','event') NOT NULL DEFAULT 'creator'"); } catch (PDOException $e) {}
 	try { $pdo->exec("CREATE INDEX idx_pages_page_type ON pages(page_type)"); } catch (PDOException $e) {}
 	try { $pdo->exec("ALTER TABLE pages MODIFY profile_image_path MEDIUMTEXT NULL, MODIFY header_image_path MEDIUMTEXT NULL, MODIFY background_image_path MEDIUMTEXT NULL"); } catch (PDOException $e) {}
 
@@ -1685,6 +1700,63 @@ function xinng_ensure_page_builder_tables(PDO $pdo): void {
 			INDEX idx_page_corporate_registration_status (status)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	");
+
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS page_events (
+			page_id BIGINT UNSIGNED PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL,
+			event_format ENUM('physical','virtual','hybrid') DEFAULT 'physical',
+			attendance_type ENUM('open','ticketed') NOT NULL DEFAULT 'open',
+			start_at DATETIME NULL,
+			end_at DATETIME NULL,
+			venue VARCHAR(180) NULL,
+			city VARCHAR(100) NULL,
+			country VARCHAR(100) NULL,
+			virtual_url TEXT NULL,
+			cover_image_path MEDIUMTEXT NULL,
+			organizer_name VARCHAR(120) NULL,
+			contact_email VARCHAR(120) NULL,
+			currency CHAR(3) DEFAULT 'NGN',
+			capacity INT UNSIGNED DEFAULT 0,
+			sales_start_at DATETIME NULL,
+			sales_end_at DATETIME NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			CONSTRAINT fk_page_events_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+			INDEX idx_page_events_user_id (user_id), INDEX idx_page_events_start_at (start_at)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+	if (!xinng_table_has_column($pdo, 'page_events', 'attendance_type')) {
+		$pdo->exec("ALTER TABLE page_events ADD COLUMN attendance_type ENUM('open','ticketed') NOT NULL DEFAULT 'open' AFTER event_format");
+	}
+	if (!xinng_table_has_column($pdo, 'page_events', 'country')) {
+		$pdo->exec('ALTER TABLE page_events ADD COLUMN country VARCHAR(100) NULL AFTER city');
+	}
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS event_ticket_types (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, page_id BIGINT UNSIGNED NOT NULL, user_id BIGINT UNSIGNED NOT NULL,
+			name VARCHAR(100) NOT NULL, description VARCHAR(220) NULL, price_minor BIGINT UNSIGNED DEFAULT 0,
+			quantity_total INT UNSIGNED DEFAULT 0, quantity_sold INT UNSIGNED DEFAULT 0, min_per_order INT UNSIGNED DEFAULT 1,
+			max_per_order INT UNSIGNED DEFAULT 10, position INT DEFAULT 0, is_active BOOLEAN DEFAULT TRUE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, deleted_at DATETIME NULL,
+			CONSTRAINT fk_event_ticket_types_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+			INDEX idx_event_ticket_types_page_id (page_id), INDEX idx_event_ticket_types_user_id (user_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS event_orders (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, page_id BIGINT UNSIGNED NOT NULL, ticket_type_id BIGINT UNSIGNED NOT NULL,
+			order_ref VARCHAR(40) NOT NULL, ticket_code VARCHAR(40) NOT NULL, attendee_name VARCHAR(120) NOT NULL,
+			attendee_email VARCHAR(120) NOT NULL, attendee_phone VARCHAR(40) NULL, quantity INT UNSIGNED DEFAULT 1,
+			unit_price_minor BIGINT UNSIGNED DEFAULT 0, total_minor BIGINT UNSIGNED DEFAULT 0, currency CHAR(3) DEFAULT 'NGN',
+			payment_status ENUM('free','pending','paid','failed','refunded','cancelled') DEFAULT 'pending', pandascrow_reference VARCHAR(160) NULL,
+			pandascrow_payment_url TEXT NULL, checked_in_at DATETIME NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			CONSTRAINT fk_event_orders_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+			CONSTRAINT fk_event_orders_ticket FOREIGN KEY (ticket_type_id) REFERENCES event_ticket_types(id) ON DELETE RESTRICT,
+			UNIQUE KEY unique_event_order_ref (order_ref), UNIQUE KEY unique_event_ticket_code (ticket_code), INDEX idx_event_orders_page_id (page_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
 	try { $pdo->exec("ALTER TABLE page_blocks MODIFY image_path MEDIUMTEXT NULL"); } catch (PDOException $e) {}
 	try {
 		$stmt = $pdo->query("
@@ -1704,6 +1776,27 @@ function xinng_ensure_page_builder_tables(PDO $pdo): void {
 	} catch (Throwable $e) {
 		error_log('Corporate page backfill failed: ' . $e->getMessage());
 	}
+}
+
+function xinng_default_event_page_data(array $page = []): array {
+	return ['format'=>'physical','attendance_type'=>'open','start_at'=>'','end_at'=>'','venue'=>'','city'=>'','country'=>'','virtual_url'=>'','cover_image'=>$page['header_image_path'] ?? '','organizer_name'=>'','contact_email'=>'','currency'=>'NGN','capacity'=>0,'sales_start_at'=>'','sales_end_at'=>'','tickets'=>[]];
+}
+
+function xinng_load_event_page_data(PDO $pdo, int $page_id, array $page = []): array {
+	$data = xinng_default_event_page_data($page);
+	$stmt = $pdo->prepare('SELECT * FROM page_events WHERE page_id=? LIMIT 1'); $stmt->execute([$page_id]);
+	if ($event = $stmt->fetch()) $data = array_merge($data, ['format'=>$event['event_format'] ?? 'physical','attendance_type'=>$event['attendance_type'] ?? 'open','start_at'=>$event['start_at'] ?? '','end_at'=>$event['end_at'] ?? '','venue'=>$event['venue'] ?? '','city'=>$event['city'] ?? '','country'=>$event['country'] ?? '','virtual_url'=>$event['virtual_url'] ?? '','cover_image'=>$event['cover_image_path'] ?? '','organizer_name'=>$event['organizer_name'] ?? '','contact_email'=>$event['contact_email'] ?? '','currency'=>$event['currency'] ?? 'NGN','capacity'=>(int)($event['capacity'] ?? 0),'sales_start_at'=>$event['sales_start_at'] ?? '','sales_end_at'=>$event['sales_end_at'] ?? '']);
+	$stmt = $pdo->prepare('SELECT * FROM event_ticket_types WHERE page_id=? AND deleted_at IS NULL ORDER BY position,id'); $stmt->execute([$page_id]);
+	$data['tickets'] = array_map(static fn($t) => ['id'=>(int)$t['id'],'name'=>$t['name'],'description'=>$t['description'] ?? '','price_minor'=>(int)$t['price_minor'],'quantity_total'=>(int)$t['quantity_total'],'quantity_sold'=>(int)$t['quantity_sold'],'min_per_order'=>(int)$t['min_per_order'],'max_per_order'=>(int)$t['max_per_order'],'is_active'=>(bool)$t['is_active']], $stmt->fetchAll());
+	return $data;
+}
+
+function xinng_save_event_page_data(PDO $pdo, int $page_id, int $user_id, array $event): void {
+	$stmt=$pdo->prepare('INSERT INTO page_events (page_id,user_id,event_format,attendance_type,start_at,end_at,venue,city,country,virtual_url,cover_image_path,organizer_name,contact_email,currency,capacity,sales_start_at,sales_end_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE event_format=VALUES(event_format),attendance_type=VALUES(attendance_type),start_at=VALUES(start_at),end_at=VALUES(end_at),venue=VALUES(venue),city=VALUES(city),country=VALUES(country),virtual_url=VALUES(virtual_url),cover_image_path=VALUES(cover_image_path),organizer_name=VALUES(organizer_name),contact_email=VALUES(contact_email),currency=VALUES(currency),capacity=VALUES(capacity),sales_start_at=VALUES(sales_start_at),sales_end_at=VALUES(sales_end_at),updated_at=NOW()');
+	$stmt->execute([$page_id,$user_id,$event['format'] ?? 'physical',$event['attendance_type'] ?? 'open',xinng_normalize_datetime_for_db($event['start_at'] ?? null),xinng_normalize_datetime_for_db($event['end_at'] ?? null),$event['venue'] ?? null,$event['city'] ?? null,$event['country'] ?? null,$event['virtual_url'] ?? null,$event['cover_image'] ?? null,$event['organizer_name'] ?? null,$event['contact_email'] ?? null,$event['currency'] ?? 'NGN',max(1,(int)($event['capacity'] ?? 1)),xinng_normalize_datetime_for_db($event['sales_start_at'] ?? null),xinng_normalize_datetime_for_db($event['sales_end_at'] ?? null)]);
+	$ids=[];
+	foreach(array_slice((array)($event['tickets'] ?? []),0,20) as $position=>$ticket){ if(!is_array($ticket)||trim((string)($ticket['name'] ?? ''))==='') continue; $id=max(0,(int)($ticket['id'] ?? 0)); $vals=[mb_substr(trim((string)$ticket['name']),0,100),mb_substr(trim((string)($ticket['description'] ?? '')),0,220),max(0,(int)($ticket['price_minor'] ?? 0)),max(0,(int)($ticket['quantity_total'] ?? 0)),max(1,(int)($ticket['min_per_order'] ?? 1)),max(1,min(100,(int)($ticket['max_per_order'] ?? 10))),(int)$position,!empty($ticket['is_active'])?1:0]; if($id){$q=$pdo->prepare('UPDATE event_ticket_types SET name=?,description=?,price_minor=?,quantity_total=?,min_per_order=?,max_per_order=?,position=?,is_active=?,deleted_at=NULL,updated_at=NOW() WHERE id=? AND page_id=? AND user_id=?');$q->execute(array_merge($vals,[$id,$page_id,$user_id]));$ids[]=$id;}else{$q=$pdo->prepare('INSERT INTO event_ticket_types (page_id,user_id,name,description,price_minor,quantity_total,min_per_order,max_per_order,position,is_active,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,NOW(),NOW())');$q->execute(array_merge([$page_id,$user_id],$vals));$ids[]=(int)$pdo->lastInsertId();}}
+	if($ids){$marks=implode(',',array_fill(0,count($ids),'?'));$pdo->prepare("UPDATE event_ticket_types SET deleted_at=NOW(),is_active=0 WHERE page_id=? AND user_id=? AND id NOT IN ($marks)")->execute(array_merge([$page_id,$user_id],$ids));}
 }
 
 function xinng_default_corporate_page_data(array $page = []): array {

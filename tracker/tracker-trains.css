@@ -1,0 +1,7 @@
+.train-tabs{display:flex;gap:7px;overflow-x:auto;padding:2px 0 13px;scrollbar-width:thin}
+.train-tabs button{white-space:nowrap;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:9px 13px;font:600 10px Manrope;color:var(--muted);cursor:pointer}
+.train-tabs button:hover{border-color:#aaa398;color:var(--ink)}
+.train-tabs button.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.train-tabs button span{margin-left:6px;font:9px DM Mono;opacity:.7}
+.phase-family{font:500 9px DM Mono;color:#8b857b;text-transform:uppercase;letter-spacing:.08em}
+@media(max-width:760px){.train-tabs{margin-right:-18px;padding-right:18px}.train-tabs button{padding:8px 11px}}

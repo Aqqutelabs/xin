@@ -8,6 +8,7 @@ $id = (int)($_GET['id'] ?? 0);
 $pdo = get_db_connection();
 if (!$pdo || $id <= 0) { http_response_code(404); echo 'Page not found'; exit; }
 xinng_ensure_page_builder_tables($pdo);
+$canRemoveBranding = xinng_user_has_paid_access($pdo, $user_id);
 function e($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function initials3(string $name): string { return strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $name) ?: 'X', 0, 2)); }
 $stmt = $pdo->prepare('SELECT * FROM pages WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1');
@@ -21,10 +22,12 @@ $stmt = $pdo->prepare('SELECT * FROM page_socials WHERE page_id = ? AND deleted_
 $stmt->execute([$id]);
 $socials = array_map(static function($s) { $s['is_active'] = (bool)$s['is_active']; return $s; }, $stmt->fetchAll());
 $corporateMetadata = xinng_load_corporate_page_data($pdo, (int)$page['id'], $page);
+$eventMetadata = xinng_load_event_page_data($pdo, (int)$page['id'], $page);
 $state = [
 	'id' => (int)$page['id'],
-	'page_type' => in_array($page['page_type'] ?? 'creator', ['creator', 'corporate'], true) ? $page['page_type'] : 'creator',
+	'page_type' => in_array($page['page_type'] ?? 'creator', ['creator', 'corporate', 'event'], true) ? $page['page_type'] : 'creator',
 	'corporate' => $corporateMetadata,
+	'event' => $eventMetadata,
 	'slug' => $page['slug'],
 	'title' => $page['title'] ?? '',
 	'description' => $page['description'] ?? ($page['bio'] ?? ''),
@@ -41,7 +44,7 @@ $state = [
 	'social_placement' => $page['social_placement'] ?? 'top',
 	'block_style' => ['shape' => $page['block_shape'] ?? 'rounded', 'shadow' => $page['block_shadow'] ?? 'soft', 'block_color' => $page['block_color'] ?? '#0A9994', 'block_text_color' => $page['block_text_color'] ?? '#FFFAF6'],
 	'blocks' => $blocks,
-	'branding' => ['hide_xinng_logo' => !empty($page['hide_xinng_logo'])],
+	'branding' => ['hide_xinng_logo' => $canRemoveBranding && !empty($page['hide_xinng_logo'])],
 ];
 $publicUrl = xinng_short_url($page['slug']);
 $csrf = csrf_token();
@@ -53,7 +56,7 @@ $csrf = csrf_token();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Page Builder - <?= e($page['title'] ?: $page['slug']) ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-social-styles-v4">
 </head>
 <body class="builder-page">
   <header class="builder-topbar">
@@ -66,10 +69,20 @@ $csrf = csrf_token();
       <button class="small-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
       <a class="small-btn" href="<?= e($publicUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       <button class="small-btn" type="button"><i class="fa-solid fa-share-nodes"></i>Share</button>
+      <div class="save-state is-saved" id="save-state" role="status" aria-live="polite">
+        <span class="save-state-dot" aria-hidden="true"></span><strong>All changes saved</strong>
+      </div>
       <button class="small-btn primary" id="publish-page" type="button" disabled>Publish changes</button>
     </div>
   </header>
   <main class="builder-shell">
+    <aside class="builder-global-nav" aria-label="Workspace navigation">
+      <a href="dashboard.php"><i class="fa-solid fa-link"></i><span>URL Links</span></a>
+      <a href="pages.php"><i class="fa-regular fa-file-lines"></i><span>Pages</span></a>
+      <a class="<?= ($page['page_type'] ?? '') === 'event' ? 'active' : '' ?>" href="events.php"><i class="fa-solid fa-calendar-days"></i><span>Events</span></a>
+      <a href="qr_codes.php"><i class="fa-solid fa-qrcode"></i><span>QR Codes</span></a>
+      <a href="insights.php"><i class="fa-solid fa-chart-line"></i><span>Insights</span></a>
+    </aside>
     <section class="builder-workspace">
       <nav class="builder-tabs">
         <button class="active" data-tab="build" type="button">Build</button>
@@ -80,6 +93,8 @@ $csrf = csrf_token();
       <div class="builder-panel">
         <section class="builder-tab active" id="tab-build">
           <div class="builder-mode-note" id="builder-mode-note"></div>
+          <div class="event-builder" id="event-builder" hidden></div>
+          <div id="generic-builder">
           <button class="primary-btn builder-add-btn" id="add-block" type="button"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Add</button>
           <div class="block-type-menu" id="block-type-menu" hidden>
             <div class="block-type-group" id="suggested-block-types"></div>
@@ -87,47 +102,57 @@ $csrf = csrf_token();
             <div class="block-type-group more" id="more-block-types" hidden></div>
           </div>
           <div id="block-list"></div>
+          </div>
         </section>
         <section class="builder-tab" id="tab-design">
-          <div class="design-card">
-            <h2>Page Settings</h2>
-            <label>Page Type
-              <select id="page-type-select">
-                <option value="creator">Creator Page</option>
-                <option value="corporate">Company Page</option>
-              </select>
-            </label>
-            <p class="muted-row" id="page-type-help"></p>
+          <div class="design-intro">
+            <div><h1>Make it unmistakably yours.</h1><p>Every choice below updates the phone preview instantly.</p></div>
           </div>
           <div class="design-card corporate-fields" id="corporate-fields" hidden>
-            <h2>Company Page Content</h2>
-            <p class="muted-row">These fields drive the public corporate page and the live preview.</p>
+            <h2 id="structured-page-heading">Structured Page Content</h2>
+            <p class="muted-row" id="structured-page-help">These fields drive the public page and live preview.</p>
             <div id="corporate-editor"></div>
           </div>
-          <div class="design-card">
+          <div class="design-card design-card--identity">
             <h2 id="profile-section-title">Profile</h2>
-            <label>Image</label>
-            <div class="image-picker"><div class="image-placeholder" id="profile-image-preview"><i class="fa-regular fa-image"></i></div><label class="small-btn">Add image<input id="profile-image-input" type="file" accept="image/*" hidden></label><button class="small-btn" id="remove-profile-image" type="button">Remove</button></div>
-            <label>Title <span id="title-count">0/32</span></label><input id="page-title" maxlength="32">
+            <p class="design-card-copy">Add an event logo or event mark, then set the title people will recognize.</p>
+            <div class="event-identity-primary">
+              <div class="event-logo-field">
+                <label>Event logo</label>
+                <div class="image-picker">
+                  <div class="profile-photo-control">
+                    <label class="image-placeholder" id="profile-image-preview" for="profile-image-input" title="Add event logo"><span class="profile-photo-plus" aria-hidden="true">+</span><span class="sr-only">Add event logo</span></label>
+                    <button class="profile-photo-remove" id="remove-profile-image" type="button" aria-label="Remove event logo" title="Remove event logo" hidden>&times;</button>
+                  </div>
+                  <input id="profile-image-input" type="file" accept="image/*" hidden>
+                  <small class="image-picker-help">Click to add or change. PNG, JPG or WebP.</small>
+                </div>
+              </div>
+              <div class="event-title-field">
+                <label>Title <span id="title-count">0/32</span></label>
+                <input id="page-title" maxlength="32">
+              </div>
+            </div>
             <label>Description <span id="desc-count">0/80</span></label><input id="page-description" maxlength="80">
           </div>
-          <div class="design-card">
+          <div class="design-card design-card--page">
             <h2>Page</h2><label>Slug</label><input id="page-slug" maxlength="64">
             <h3>Themes</h3><div class="theme-row" id="theme-row"></div>
             <h3>Layout</h3><div class="layout-row" id="layout-row"></div>
           </div>
-          <div class="design-card">
+          <div class="design-card design-card--visual">
             <h2>Header</h2>
             <div class="segmented" data-bind="header.mode"><button data-value="color">Color</button><button data-value="gradient">Gradient</button><button data-value="image">Image</button></div>
-            <div class="form-grid"><label>Color<input id="header-color" type="text"></label><label>Gradient start<input id="header-gradient-start" type="text"></label><label>Gradient end<input id="header-gradient-end" type="text"></label><label>Fit<select id="header-fit"><option value="cover">Stretch</option><option value="contain">Fit</option><option value="repeat">Repeat</option></select></label></div>
-            <label class="small-btn">Header image<input id="header-image-input" type="file" accept="image/*" hidden></label>
+            <div class="form-grid"><label data-mode-owner="header" data-mode-field="color">Color<input id="header-color" type="text"></label><label data-mode-owner="header" data-mode-field="gradient">Gradient start<input id="header-gradient-start" type="text"></label><label data-mode-owner="header" data-mode-field="gradient">Gradient end<input id="header-gradient-end" type="text"></label></div>
+            <label class="upload-surface" data-mode-owner="header" data-mode-field="image"><i class="fa-regular fa-image"></i><span><strong>Upload header image</strong><small>This becomes the event cover in the live preview.</small></span><b>Choose file</b><input id="header-image-input" type="file" accept="image/*" hidden></label>
           </div>
-          <div class="design-card">
+          <div class="design-card design-card--visual">
             <h2>Background</h2>
             <div class="segmented" data-bind="background.mode"><button data-value="color">Color</button><button data-value="gradient">Gradient</button><button data-value="image">Image</button></div>
-            <div class="form-grid"><label>Color<input id="background-color" type="text"></label><label>Gradient start<input id="background-gradient-start" type="text"></label><label>Gradient end<input id="background-gradient-end" type="text"></label><label class="small-btn">Background image<input id="background-image-input" type="file" accept="image/*" hidden></label></div>
+            <div class="form-grid"><label data-mode-owner="background" data-mode-field="color">Color<input id="background-color" type="text"></label><label data-mode-owner="background" data-mode-field="gradient">Gradient start<input id="background-gradient-start" type="text"></label><label data-mode-owner="background" data-mode-field="gradient">Gradient end<input id="background-gradient-end" type="text"></label></div>
+            <label class="upload-surface" data-mode-owner="background" data-mode-field="image"><i class="fa-regular fa-images"></i><span><strong>Upload background image</strong><small>Shown behind the event details and ticket action.</small></span><b>Choose file</b><input id="background-image-input" type="file" accept="image/*" hidden></label>
           </div>
-          <div class="design-card">
+          <div class="design-card" id="block-design-card">
             <h2>Text color</h2>
             <div class="form-grid"><label>Title<input id="title-color" type="text"></label><label>Description<input id="description-color" type="text"></label><label>Font<select id="font-select"><option value="system">Default system</option><option value="Montserrat">Montserrat</option><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Poppins">Poppins</option></select></label></div>
           </div>
@@ -140,8 +165,10 @@ $csrf = csrf_token();
             <h2>Blocks</h2><h3>Shape</h3><div class="block-style-grid" id="block-shape-row"></div><h3>Shadow</h3><div class="block-style-grid" id="block-shadow-row"></div>
             <div class="form-grid"><label>Block color<input id="block-color" type="text"></label><label>Block text<input id="block-text-color" type="text"></label></div>
           </div>
-          <div class="design-card">
-            <h2>Branding</h2><label class="check-row"><input id="hide-branding" type="checkbox"> Hide the Xinng logo</label>
+          <div class="design-card branding-card">
+            <div class="branding-card-copy"><div><h2>Branding</h2><p>Remove the Xinng mark from your published page.</p></div><span class="paid-badge"><i class="fa-solid fa-crown"></i> Paid</span></div>
+            <label class="branding-toggle"><span><strong>Hide Xinng logo</strong><small><?= $canRemoveBranding ? 'Available on your account' : 'Upgrade to unlock this option' ?></small></span><input id="hide-branding" type="checkbox" <?= $canRemoveBranding ? '' : 'disabled aria-disabled="true"' ?>></label>
+            <?php if (!$canRemoveBranding): ?><a class="branding-upgrade" href="credits.php">View paid options <i class="fa-solid fa-arrow-right"></i></a><?php endif; ?>
           </div>
         </section>
         <section class="builder-tab" id="tab-track">
@@ -161,7 +188,7 @@ $csrf = csrf_token();
   </main>
   <script>
   window.initialPageState = <?= json_encode($state, JSON_UNESCAPED_SLASHES) ?>;
-  window.pageBuilderConfig = { logoUrl: <?= json_encode(xinng_brand_logo_url(xinng_public_base_url())) ?>, csrf: <?= json_encode($csrf) ?>, publicBase: <?= json_encode(rtrim(xinng_public_base_url(), '/')) ?> };
+  window.pageBuilderConfig = { logoUrl: <?= json_encode(xinng_brand_logo_url(xinng_public_base_url())) ?>, csrf: <?= json_encode($csrf) ?>, publicBase: <?= json_encode(rtrim(xinng_public_base_url(), '/')) ?>, canRemoveBranding: <?= $canRemoveBranding ? 'true' : 'false' ?> };
     (function(){
       // Track simple dirty state without interrupting navigation with browser dialogs
       window.pageBuilderDirty = false;
@@ -184,6 +211,6 @@ $csrf = csrf_token();
 
     })();
   </script>
-  <script src="assets/js/page-builder.js"></script>
+<script src="assets/js/page-builder.js?v=20261017-social-styles-v4"></script>
 </body>
 </html>

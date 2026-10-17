@@ -18,6 +18,7 @@ if (!$pdo) {
 }
 xinng_ensure_page_builder_tables($pdo);
 xinng_ensure_credit_tables($pdo);
+xinng_ensure_qr_code_tables($pdo);
 
 function pages_payload(): array {
 	$raw = file_get_contents('php://input');
@@ -41,7 +42,7 @@ function page_row(PDO $pdo, array $page): array {
 		return $social;
 	}, $stmt->fetchAll());
 
-	return ['page' => $page, 'blocks' => $blocks, 'socials' => $socials, 'corporate' => xinng_load_corporate_page_data($pdo, (int)$page['id'], $page)];
+	return ['page' => $page, 'blocks' => $blocks, 'socials' => $socials, 'corporate' => xinng_load_corporate_page_data($pdo, (int)$page['id'], $page), 'event' => xinng_load_event_page_data($pdo, (int)$page['id'], $page)];
 }
 
 function load_user_page(PDO $pdo, int $id, int $user_id): ?array {
@@ -122,13 +123,19 @@ function unique_page_slug(PDO $pdo, string $base, ?int $current_page_id = null):
 
 function normalize_page_type($value): string {
 	$v = strtolower(trim((string)$value));
+	$event_aliases = ['event', 'event page', 'event_page', 'eventpage'];
+	if (in_array($v, $event_aliases, true)) return 'event';
 	$corporate_aliases = ['corporate', 'company', 'company page', 'company_page', 'companypage', 'corp'];
 	if (in_array($v, $corporate_aliases, true)) return 'corporate';
 	return 'creator';
 }
 
 function page_type_defaults(string $pageType): array {
-	if ($pageType === 'corporate') {
+	if ($pageType === 'event') {
+		return ['title'=>'New Event','description'=>'Everything attendees need, from registration to check-in.','event'=>['format'=>'physical','attendance_type'=>'open','start_at'=>'','end_at'=>'','venue'=>'','city'=>'','country'=>'','virtual_url'=>'','cover_image'=>'','organizer_name'=>'','contact_email'=>'','currency'=>'NGN','capacity'=>1,'sales_start_at'=>'','sales_end_at'=>'','tickets'=>[]],'theme'=>'warm','layout'=>'event','header_color'=>'#201A19','background_color'=>'#FFF9F7','block_color'=>'#E83B32','block_text_color'=>'#FFFFFF','blocks'=>[]];
+	}
+	if (in_array($pageType, ['corporate', 'event'], true)) {
+		$isEvent = $pageType === 'event';
 		$corporate = [
 			'header_photo' => '',
 			'logo' => '',
@@ -149,20 +156,20 @@ function page_type_defaults(string $pageType): array {
 			'locations' => [],
 			'links' => [],
 			'socials' => [],
-			'event' => ['title' => '', 'description' => '', 'start_at' => '', 'end_at' => '', 'location' => '', 'city' => '', 'countdown' => false, 'book_link' => '', 'brochure_link' => '', 'register' => false, 'card_color' => '#062947', 'button_label' => ''],
+			'event' => ['title' => $isEvent ? 'Your event' : '', 'description' => $isEvent ? 'Add the essential details attendees need to register.' : '', 'start_at' => '', 'end_at' => '', 'location' => '', 'city' => '', 'countdown' => $isEvent, 'book_link' => '', 'brochure_link' => '', 'register' => $isEvent, 'card_color' => $isEvent ? '#201A19' : '#062947', 'button_label' => $isEvent ? 'Register now' : ''],
 			'cards' => [],
 			'buttons' => [],
 			'team' => ['title' => '', 'description' => '', 'members' => []],
 		];
 		return [
-			'title' => 'Company Page',
-			'description' => 'Company profile, documents, meetings, and business inquiries.',
+			'title' => $isEvent ? 'Event Page' : 'Company Page',
+			'description' => $isEvent ? 'Event details, ticket options, registration, and attendee updates.' : 'Company profile, documents, meetings, and business inquiries.',
 			'corporate' => $corporate,
-			'theme' => 'navy',
+			'theme' => $isEvent ? 'warm' : 'navy',
 			'layout' => 'compact',
-			'header_color' => '#102A43',
-			'background_color' => '#F6F8FB',
-			'block_color' => '#102A43',
+			'header_color' => $isEvent ? '#201A19' : '#102A43',
+			'background_color' => $isEvent ? '#FFF9F7' : '#F6F8FB',
+			'block_color' => $isEvent ? '#E83B32' : '#102A43',
 			'block_text_color' => '#FFFFFF',
 			'blocks' => [],
 		];
@@ -202,6 +209,30 @@ function pages_clean_bool($value): bool {
 
 function pages_clean_hex($value, string $fallback): string {
 	return xinng_validate_hex_color((string)$value, $fallback);
+}
+
+function sanitize_event_metadata($raw): array {
+	$raw=is_array($raw)?$raw:[]; $format=in_array($raw['format'] ?? '',['physical','virtual','hybrid'],true)?$raw['format']:'physical';
+	$attendanceType=in_array($raw['attendance_type'] ?? '',['open','ticketed'],true)?$raw['attendance_type']:'open';
+	$currency=strtoupper(pages_clean_text($raw['currency'] ?? 'NGN',3)); if(!preg_match('/^[A-Z]{3}$/',$currency)) $currency='NGN';
+	$clean=['format'=>$format,'attendance_type'=>$attendanceType,'start_at'=>pages_clean_text($raw['start_at'] ?? '',40),'end_at'=>pages_clean_text($raw['end_at'] ?? '',40),'venue'=>pages_clean_text($raw['venue'] ?? '',180),'city'=>pages_clean_text($raw['city'] ?? '',100),'country'=>pages_clean_text($raw['country'] ?? '',100),'virtual_url'=>pages_clean_url($raw['virtual_url'] ?? ''),'cover_image'=>pages_clean_image_url($raw['cover_image'] ?? ''),'organizer_name'=>pages_clean_text($raw['organizer_name'] ?? '',120),'contact_email'=>pages_clean_text($raw['contact_email'] ?? '',120),'currency'=>$currency,'capacity'=>max(0,(int)($raw['capacity'] ?? 0)),'sales_start_at'=>pages_clean_text($raw['sales_start_at'] ?? '',40),'sales_end_at'=>pages_clean_text($raw['sales_end_at'] ?? '',40),'tickets'=>[]];
+	foreach(array_slice((array)($raw['tickets'] ?? []),0,20) as $ticket){if(!is_array($ticket))continue;$name=pages_clean_text($ticket['name'] ?? '',100);if($name==='')continue;$clean['tickets'][]=['id'=>max(0,(int)($ticket['id'] ?? 0)),'name'=>$name,'description'=>pages_clean_text($ticket['description'] ?? '',220),'price_minor'=>max(0,(int)($ticket['price_minor'] ?? 0)),'quantity_total'=>max(0,(int)($ticket['quantity_total'] ?? 0)),'min_per_order'=>max(1,(int)($ticket['min_per_order'] ?? 1)),'max_per_order'=>max(1,min(100,(int)($ticket['max_per_order'] ?? 10))),'is_active'=>!empty($ticket['is_active'])];}
+	return $clean;
+}
+
+function validate_event_metadata(array $event): ?string {
+	if ($event['start_at'] === '' || $event['end_at'] === '' || $event['venue'] === '' || $event['country'] === '') return 'event_required_fields';
+	if ((int)$event['capacity'] < 1) return 'event_capacity_required';
+	if ($event['attendance_type'] !== 'ticketed') return null;
+	if (count($event['tickets']) < 1) return 'event_ticket_required';
+	$totalQuantity = 0;
+	foreach ($event['tickets'] as $ticket) {
+		if ((int)$ticket['price_minor'] < 1) return 'event_ticket_price_required';
+		if ((int)$ticket['quantity_total'] < 1) return 'event_ticket_quantity_required';
+		$totalQuantity += (int)$ticket['quantity_total'];
+	}
+	if ($totalQuantity > (int)$event['capacity']) return 'event_ticket_quantity_exceeds_capacity';
+	return null;
 }
 
 function pages_card_link_allowed(string $type, string $url): bool {
@@ -429,7 +460,6 @@ try {
 
 	if ($method === 'POST') {
 		$pageType = normalize_page_type($requestedPageType);
-		error_log('DEBUG api/pages.php pageType: ' . $pageType . ' | raw payload: ' . json_encode($payload));
 		$defaults = page_type_defaults($pageType);
 		$title = trim((string)($payload['title'] ?? $defaults['title']));
 		if ($title === '') $title = $defaults['title'];
@@ -447,6 +477,7 @@ try {
 		if ($pageType === 'corporate') {
 			xinng_save_corporate_page_data($pdo, $id, $user_id, sanitize_corporate_metadata($defaults['corporate'] ?? []));
 		}
+		if ($pageType === 'event') xinng_save_event_page_data($pdo,$id,$user_id,sanitize_event_metadata($defaults['event'] ?? []));
 		$stmt = $pdo->prepare('INSERT INTO page_blocks (page_id, user_id, type, title, description, destination_url, position, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())');
 		foreach ($defaults['blocks'] as $position => $block) {
 			$stmt->execute([$id, $user_id, $block['type'], $block['title'], $block['description'], $block['destination_url'], $position]);
@@ -465,13 +496,19 @@ try {
 		$slugCheck = xinng_validate_page_slug($pdo, (string)($state['slug'] ?? $page['slug']), $id);
 		if (!$slugCheck['ok']) { http_response_code(422); echo json_encode(['ok' => false, 'error' => $slugCheck['error']]); exit; }
 		$pageType = normalize_page_type($state['page_type'] ?? ($page['page_type'] ?? 'creator'));
-		error_log('DEBUG api/pages.php PATCH incoming state.page_type: ' . var_export($state['page_type'] ?? null, true) . ' | normalized pageType: ' . $pageType . ' | existing page.page_type: ' . ($page['page_type'] ?? ''));
 
 		$header = is_array($state['header'] ?? null) ? $state['header'] : [];
 		$background = is_array($state['background'] ?? null) ? $state['background'] : [];
 		$blockStyle = is_array($state['block_style'] ?? null) ? $state['block_style'] : [];
 		$branding = is_array($state['branding'] ?? null) ? $state['branding'] : [];
+		$canRemoveBranding = xinng_user_has_paid_access($pdo, $user_id);
 		$corporateMetadata = sanitize_corporate_metadata($state['corporate'] ?? []);
+		$eventMetadata = sanitize_event_metadata($state['event'] ?? []);
+		if ($pageType === 'event' && ($eventError = validate_event_metadata($eventMetadata))) {
+			http_response_code(422);
+			echo json_encode(['ok' => false, 'error' => $eventError]);
+			exit;
+		}
 		if ($pageType === 'corporate') {
 			if ($corporateMetadata['company_name'] === '') $corporateMetadata['company_name'] = substr((string)($state['title'] ?? $page['title'] ?? 'Company Page'), 0, 100);
 			if ($corporateMetadata['description'] === '') $corporateMetadata['description'] = substr((string)($state['description'] ?? $page['description'] ?? ''), 0, 200);
@@ -510,13 +547,14 @@ try {
 			$blockStyle['shadow'] ?? 'soft',
 			xinng_validate_hex_color($blockStyle['block_color'] ?? '#0A9994', '#0A9994'),
 			xinng_validate_hex_color($blockStyle['block_text_color'] ?? '#FFFAF6', '#FFFAF6'),
-			!empty($branding['hide_xinng_logo']) ? 1 : 0,
+			$canRemoveBranding && !empty($branding['hide_xinng_logo']) ? 1 : 0,
 			$id,
 			$user_id
 		]);
 		if ($pageType === 'corporate') {
 			xinng_save_corporate_page_data($pdo, $id, $user_id, $corporateMetadata);
 		}
+		if ($pageType === 'event') xinng_save_event_page_data($pdo,$id,$user_id,$eventMetadata);
 
 		$pdo->prepare('UPDATE page_blocks SET deleted_at = NOW() WHERE page_id = ? AND user_id = ?')->execute([$id, $user_id]);
 		foreach (($state['blocks'] ?? []) as $pos => $block) {
@@ -533,7 +571,12 @@ try {
 		}
 		xinng_ensure_page_qr_code($pdo, $user_id, $id, (string)($state['title'] ?? $page['title'] ?? 'Page'), xinng_short_url($slugCheck['slug']));
 		$pdo->commit();
-		echo json_encode(['ok' => true, 'slug' => $slugCheck['slug'], 'public_url' => xinng_short_url($slugCheck['slug'])]);
+		echo json_encode([
+			'ok' => true,
+			'slug' => $slugCheck['slug'],
+			'public_url' => xinng_short_url($slugCheck['slug']),
+			'event' => $pageType === 'event' ? xinng_load_event_page_data($pdo, $id, $page) : null,
+		]);
 		exit;
 	}
 

@@ -83,42 +83,27 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Insights - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css">
-  <style>
-    .insights-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(280px, .65fr); gap:18px; }
-    .insights-panel { background:#fff; border:1px solid #e7dfd6; border-radius:16px; padding:22px; }
-    .insights-panel h2 { margin:0 0 6px; font-size:18px; }
-    .insights-panel > p { margin:0 0 18px; color:#777; font-size:13px; }
-    .trend { display:grid; grid-template-columns:repeat(7, 1fr); align-items:end; gap:10px; min-height:210px; padding-top:12px; }
-    .trend-day { display:grid; gap:8px; justify-items:center; height:190px; grid-template-rows:1fr auto; }
-    .trend-bars { width:100%; height:100%; display:flex; align-items:end; justify-content:center; gap:3px; }
-    .trend-bar { width:28%; min-height:3px; border-radius:4px 4px 0 0; }
-    .trend-bar.views { background:#b75356; } .trend-bar.clicks { background:#1979bf; } .trend-bar.scans { background:#0a9994; }
-    .trend-day small { color:#777; font-size:11px; }
-    .legend { display:flex; gap:16px; margin-top:12px; color:#666; font-size:12px; } .legend span:before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; } .legend .views:before { background:#b75356; } .legend .clicks:before { background:#1979bf; } .legend .scans:before { background:#0a9994; }
-    .insights-list { display:grid; gap:12px; } .insight-row { display:flex; justify-content:space-between; gap:14px; align-items:center; padding-bottom:12px; border-bottom:1px solid #eee8e1; } .insight-row:last-child { border-bottom:0; padding-bottom:0; } .insight-row strong { display:block; font-size:14px; } .insight-row small { color:#888; display:block; margin-top:3px; overflow-wrap:anywhere; } .insight-value { font-weight:900; color:#001a38; white-space:nowrap; } .empty-insights { color:#888; font-size:13px; padding:10px 0; }
-    .activity-list { display:grid; gap:0; } .activity-item { display:flex; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid #eee8e1; } .activity-item:last-child { border-bottom:0; } .activity-icon { width:32px; height:32px; display:grid; place-items:center; border-radius:9px; background:#f8e9e7; color:#b75356; flex:none; } .activity-item strong { font-size:13px; } .activity-item small { color:#888; display:block; margin-top:3px; }
-    @media (max-width:900px) { .insights-grid { grid-template-columns:1fr; } }
-    @media (max-width:560px) { .trend { gap:4px; } .trend-bar { width:30%; } .insights-panel { padding:17px; } }
-  </style>
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-workspace-polish">
 </head>
-<body>
-  <div class="upgrade-bar"><span class="spark"><i class="fa-solid fa-bolt"></i></span><span>Turn attention into measurable action.</span><a class="upgrade-pill" href="pricing.php">Explore plans</a></div>
-  <div class="dashboard">
+<body class="insights-screen workspace-screen">
+  <div class="dashboard no-preview">
     <aside class="sidebar" aria-label="Dashboard navigation">
       <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
       <div class="account"><div class="account-main"><span class="avatar"><?= e(insights_initials($user_name)) ?></span><span><?= e($displaySlug ?: $user_name) ?></span><span aria-hidden="true">v</span></div><a class="icon-btn" href="logout.php" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
       <nav><div class="nav-section"><div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
         <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
         <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
+        <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
         <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
         <a class="nav-item active" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
+        <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-wallet"></i></span>Credits</a>
       </div></nav>
     </aside>
     <main class="main">
-      <header class="main-header"><div class="header-title"><h1>Insights</h1><span>See what your links, pages, and QR campaigns are doing.</span></div><div class="header-actions"><a class="icon-btn" href="notifications.php" title="Notifications" aria-label="Notifications"><i class="fa-solid fa-bell"></i></a></div></header>
+      <header class="main-header"><div class="header-title"><h1>Insights</h1><span>See what your links, pages, events, and QR campaigns are doing.</span></div><div class="header-actions"><span class="date-chip"><i class="fa-regular fa-calendar"></i>Last 7 days</span><a class="icon-btn" href="notifications.php" title="Notifications" aria-label="Notifications"><i class="fa-solid fa-bell"></i></a></div></header>
       <div class="content">
         <?php if ($dbError): ?><div class="notice">Database connection is not available.</div><?php endif; ?>
+        <section class="workspace-intro insights-intro"><div><span class="workspace-eyebrow">WORKSPACE PULSE</span><h2>Understand what earns attention—and what drives action.</h2><p>Your performance is grouped into views, link clicks, and QR scans so the next decision is obvious.</p></div><div class="insights-rate"><strong><?= e($rate) ?>%</strong><span>action rate</span></div></section>
         <div class="stats-row" aria-label="Insights summary"><div class="stat-card"><strong><?= number_format($totals['views']) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-regular fa-eye"></i></span>Total views</span></div><div class="stat-card"><strong><?= number_format($totals['clicks']) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-arrow-pointer"></i></span>Link clicks</span></div><div class="stat-card"><strong><?= number_format($totals['scans']) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-qrcode"></i></span>QR scans</span></div><div class="stat-card"><strong><?= e($rate) ?>%</strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-bullseye"></i></span>Action rate</span></div></div>
         <div class="insights-grid">
           <section class="insights-panel"><h2>Activity over the last 7 days</h2><p>Compare attention with the actions it creates.</p><div class="trend"><?php foreach ($trend as $day => $values): ?><div class="trend-day"><div class="trend-bars"><span class="trend-bar views" style="height:<?= max(3, round(($values['views'] / $maxTrend) * 100)) ?>%" title="<?= e($values['views']) ?> views"></span><span class="trend-bar clicks" style="height:<?= max(3, round(($values['clicks'] / $maxTrend) * 100)) ?>%" title="<?= e($values['clicks']) ?> clicks"></span><span class="trend-bar scans" style="height:<?= max(3, round(($values['scans'] / $maxTrend) * 100)) ?>%" title="<?= e($values['scans']) ?> scans"></span></div><small><?= e(date('D', strtotime($day))) ?></small></div><?php endforeach; ?></div><div class="legend"><span class="views">Views</span><span class="clicks">Clicks</span><span class="scans">Scans</span></div></section>

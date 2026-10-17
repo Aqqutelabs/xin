@@ -61,6 +61,9 @@ if (empty($page['id'])) {
 	echo 'Not found';
 	exit;
 }
+if (!empty($pdo) && $pdo instanceof PDO && !xinng_user_has_paid_access($pdo, (int)($page['user_id'] ?? 0))) {
+	$page['hide_xinng_logo'] = 0;
+}
 if (!empty($pdo) && $pdo instanceof PDO) {
 	try {
 		xinng_record_page_view($pdo, (int)$page['id']);
@@ -85,9 +88,15 @@ $socials = array_values(array_filter($socials, static fn($social) => ($social['i
 
 $title = $page['title'] ?? $page['slug'] ?? '';
 $description = $page['description'] ?? ($page['bio'] ?? '');
-$pageType = ($page['page_type'] ?? 'creator') === 'corporate' ? 'corporate' : 'creator';
+$pageType = in_array($page['page_type'] ?? 'creator', ['corporate', 'event'], true) ? $page['page_type'] : 'creator';
+if ($pageType === 'event') {
+	$event = xinng_load_event_page_data($pdo, (int)$page['id'], $page);
+	$eventTickets = array_values(array_filter((array)($event['tickets'] ?? []), static fn($ticket) => !empty($ticket['is_active'])));
+	require __DIR__ . '/event_public.php';
+	exit;
+}
 // Treat a page as corporate if it's explicitly marked or it contains corporate metadata.
-$corporateMode = $pageType === 'corporate' || !empty($page['corporate_metadata'] ?? null);
+$corporateMode = in_array($pageType, ['corporate', 'event'], true) || !empty($page['corporate_metadata'] ?? null);
 $profile = $page['profile_image_path'] ?? ($page['profile_image_url'] ?? '');
 
 $corporate = xinng_load_corporate_page_data($pdo, (int)$page['id'], $page);

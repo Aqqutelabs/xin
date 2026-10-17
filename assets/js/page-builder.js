@@ -33,6 +33,15 @@
       previewTitle: 'Company name',
       previewDescription: 'One-line value proposition, location, and business category.',
       suggestedTypes: ['cta','capability','document_hub','meeting_booking','event_countdown','contact_routing','team_member','product_catalogue','investor_material','file','short_link','qr','text','image']
+    },
+    event: {
+      name: 'Event Page',
+      help: 'For conferences, workshops, concerts, meetups, and ticketed experiences.',
+      headerLabel: 'Event Identity',
+      empty: 'Add event details, registration, ticket links, venue information, and attendee updates.',
+      previewTitle: 'Event name',
+      previewDescription: 'Date, venue, and a clear reason to attend.',
+      suggestedTypes: ['event_countdown','cta','document_hub','contact_routing','short_link','qr','text','image','video']
     }
   };
   const blockTypes = {
@@ -103,12 +112,32 @@
     };
   }
 
+  function defaultEvent() {
+    return { format:'physical', attendance_type:'open', start_at:'', end_at:'', venue:'', city:'', country:'', virtual_url:'', cover_image:'', organizer_name:'', contact_email:'', currency:'NGN', capacity:1, sales_start_at:'', sales_end_at:'', tickets:[] };
+  }
+  function mergeEvent(raw) {
+    const base=defaultEvent(), incoming=raw&&typeof raw==='object'?raw:{};
+    return {...base,...incoming,tickets:(incoming.tickets?.length?incoming.tickets:base.tickets).map(t=>({...base.tickets[0],...t}))};
+  }
+
   const $ = (s, root=document) => root.querySelector(s);
   const $$ = (s, root=document) => Array.from(root.querySelectorAll(s));
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const uid = () => 'tmp-' + Math.random().toString(36).slice(2);
   let analyticsState = { loading: false, data: null, error: null, pageId: null };
-  const markDirty = () => { dirty = true; $('#publish-page').disabled = false; $('#publish-page').textContent = 'Publish changes'; };
+  function setSaveState(kind, message) {
+    const notice = $('#save-state');
+    if (!notice) return;
+    notice.className = `save-state is-${kind}`;
+    const label = notice.querySelector('strong');
+    if (label) label.textContent = message;
+  }
+  const markDirty = () => {
+    dirty = true;
+    $('#publish-page').disabled = false;
+    $('#publish-page').textContent = 'Publish changes';
+    setSaveState('unsaved', 'Unsaved changes');
+  };
   const activeBlocks = () => (state.blocks || []).filter(b => b.is_active !== false);
   const mode = () => pageModes[state.page_type] || pageModes.creator;
   const blockLabel = type => blockTypes[type]?.label || String(type || 'link').replace(/_/g, ' ');
@@ -138,6 +167,7 @@
     return merged;
   }
   state.corporate = mergeCorporate(state.corporate);
+  state.event = mergeEvent(state.event);
 
   function fontFamily() {
     return state.font === 'system' ? 'Inter, system-ui, sans-serif' : `${state.font}, Inter, system-ui, sans-serif`;
@@ -177,6 +207,23 @@
     if (p.includes('linkedin') || p.includes('linked')) return '<i class="fa-brands fa-linkedin-in" aria-hidden="true"></i>';
     if (p.includes('website') || p.includes('web')) return '<i class="fa-solid fa-globe" aria-hidden="true"></i>';
     return '<i class="fa-solid fa-link" aria-hidden="true"></i>';
+  }
+
+  function socialClass(platform) {
+    return `social-${String(platform || 'link').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  }
+
+  function contrastColor(hex) {
+    const value = String(hex || '').replace('#', '');
+    const normalized = value.length === 3 ? value.split('').map(char => char + char).join('') : value;
+    if (!/^[0-9a-f]{6}$/i.test(normalized)) return '#FFFFFF';
+    const [r,g,b] = [0,2,4].map(index => parseInt(normalized.slice(index,index+2),16));
+    return ((r * 299 + g * 587 + b * 114) / 1000) > 155 ? '#201A19' : '#FFFFFF';
+  }
+
+  function socialThemeVars() {
+    const color = themes[state.theme]?.header || state.block_style?.block_color || '#E83B32';
+    return `--social-theme:${esc(color)};--social-contrast:${contrastColor(color)}`;
   }
 
   function renderCorporatePreview(preview) {
@@ -223,14 +270,42 @@
     $('#builder-url-text').textContent = `${config.publicBase.replace(/^https?:\/\//,'')}/${state.slug || 'page'}`;
   }
 
+  function renderEventPreview(preview) {
+    const e=state.event=mergeEvent(state.event); const date=e.start_at?new Date(e.start_at):null;
+    const dateText=date&&!Number.isNaN(date.valueOf())?date.toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'Add event date & time';
+    const socials=(state.socials||[]).filter(s=>s.is_active!==false&&s.url);
+    const socialHtml=socials.map(s=>`<span class="${socialClass(s.platform)}">${socialIcon(s.platform)}</span>`).join('');
+    const block=state.block_style||{};
+    const coverStyle=(state.header?.mode==='image'&&!state.header.image&&e.cover_image)
+      ? `background-image:url('${esc(e.cover_image)}');background-size:cover;background-position:center;`
+      : headerStyle();
+    preview.style.cssText=`${backgroundStyle()}font-family:${fontFamily()};`;
+    preview.innerHTML=`<div class="event-pv layout-${esc(state.layout||'simple')}">
+      <div class="event-pv-cover" style="${coverStyle}">
+        ${state.profile_image?`<div class="event-pv-logo"><img src="${esc(state.profile_image)}" alt=""></div>`:''}
+      </div>
+      <div class="event-pv-body">
+        ${state.social_placement!=='bottom'&&socialHtml?`<div class="event-pv-socials style-${esc(state.social_style||'original')}" style="${socialThemeVars()}">${socialHtml}</div>`:''}
+        <small>${esc(dateText)}</small>
+        <h2 style="color:${esc(state.text_color||'#201a19')}">${esc(state.title||'Your event')}</h2>
+        <p style="color:${esc(state.description_color||'#6f6562')}">${esc(state.description||'Tell people why they should attend.')}</p>
+        <div class="event-pv-meta"><span><i class="fa-solid fa-location-dot"></i>${esc([e.venue,e.city].filter(Boolean).join(', ')||'Add event location')}</span><span><i class="fa-solid fa-ticket"></i>${e.tickets.length} ticket type${e.tickets.length===1?'':'s'}</span></div>
+        <button class="shape-${esc(block.shape||'rounded')} shadow-${esc(block.shadow||'soft')}" style="background:${esc(block.block_color||'#e83b32')};color:${esc(block.block_text_color||'#fff')}">Get tickets</button>
+        ${state.social_placement==='bottom'&&socialHtml?`<div class="event-pv-socials style-${esc(state.social_style||'original')}" style="${socialThemeVars()}">${socialHtml}</div>`:''}
+        ${state.branding?.hide_xinng_logo?'':`<div class="event-pv-brand">Powered by <img src="${esc(config.logoUrl)}" alt="Xinng"></div>`}
+      </div></div>`;
+    $('#builder-url-text').textContent=`${config.publicBase.replace(/^https?:\/\//,'')}/${state.slug||'event'}`;
+  }
+
   function renderPreview() {
     const preview = $('#page-preview');
+    if ((state.page_type || 'creator') === 'event') { renderEventPreview(preview); return; }
     if ((state.page_type || 'creator') === 'corporate') {
       renderCorporatePreview(preview);
       return;
     }
     const socials = (state.socials || []).filter(s => s.is_active !== false && s.url);
-    const socialsHtml = socials.map(s => `<span>${socialIcon(s.platform)}</span>`).join('');
+    const socialsHtml = socials.map(s => `<span class="${socialClass(s.platform)}">${socialIcon(s.platform)}</span>`).join('');
     const blockStyle = state.block_style || {};
     const shapeClass = 'shape-' + (blockStyle.shape || 'rounded');
     const shadowClass = 'shadow-' + (blockStyle.shadow || 'soft');
@@ -253,9 +328,9 @@
       <div class="pb-content">
         <h2 style="color:${esc(state.text_color || '#26282C')}">${esc(state.title || mode().previewTitle)}</h2>
         <p style="color:${esc(state.description_color || '#26282C')}">${esc(state.description || mode().previewDescription)}</p>
-        ${state.social_placement !== 'bottom' ? `<div class="pb-socials style-${esc(state.social_style || 'original')}">${socialsHtml}</div>` : ''}
+        ${state.social_placement !== 'bottom' ? `<div class="pb-socials style-${esc(state.social_style || 'original')}" style="${socialThemeVars()}">${socialsHtml}</div>` : ''}
         <div class="pb-blocks">${blocksHtml || `<div class="pb-empty">${esc(mode().empty)}</div>`}</div>
-        ${state.social_placement === 'bottom' ? `<div class="pb-socials style-${esc(state.social_style || 'original')}">${socialsHtml}</div>` : ''}
+        ${state.social_placement === 'bottom' ? `<div class="pb-socials style-${esc(state.social_style || 'original')}" style="${socialThemeVars()}">${socialsHtml}</div>` : ''}
         ${state.branding?.hide_xinng_logo ? '' : `<div class="pb-brand xinng-powered"><span>Powered by</span><a class="xinng-brand xinng-brand--small" href="${esc(config.publicBase)}/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="${esc(config.logoUrl)}" alt="Xinng" width="1736" height="906"></a></div>`}
       </div>`;
     $('#builder-url-text').textContent = `${config.publicBase.replace(/^https?:\/\//,'')}/${state.slug || 'page'}`;
@@ -285,8 +360,6 @@
   }
 
   function renderDesignControls() {
-    const pageTypeSelect = $('#page-type-select');
-    if (pageTypeSelect) pageTypeSelect.value = state.page_type || 'creator';
     const typeHelp = $('#page-type-help');
     if (typeHelp) typeHelp.textContent = mode().help;
     const profileTitle = $('#profile-section-title');
@@ -299,7 +372,6 @@
     $('#header-color').value = state.header?.color || '#26282C';
     $('#header-gradient-start').value = state.header?.gradient_start || '#26282C';
     $('#header-gradient-end').value = state.header?.gradient_end || '#0A9994';
-    $('#header-fit').value = state.header?.fit || 'cover';
     $('#background-color').value = state.background?.color || '#FFFAF6';
     $('#background-gradient-start').value = state.background?.gradient_start || '#FFFAF6';
     $('#background-gradient-end').value = state.background?.gradient_end || '#FFFFFF';
@@ -308,24 +380,39 @@
     $('#font-select').value = state.font || 'system';
     $('#block-color').value = state.block_style?.block_color || '#0A9994';
     $('#block-text-color').value = state.block_style?.block_text_color || '#FFFAF6';
-    $('#hide-branding').checked = !!state.branding?.hide_xinng_logo;
+    $('#hide-branding').checked = !!config.canRemoveBranding && !!state.branding?.hide_xinng_logo;
     $('#title-count').textContent = `${(state.title || '').length}/32`;
     $('#desc-count').textContent = `${(state.description || '').length}/80`;
-    $('#profile-image-preview').innerHTML = state.profile_image ? `<img src="${esc(state.profile_image)}" alt="">` : `<i class="fa-regular fa-image"></i>`;
+    const profilePreview = $('#profile-image-preview');
+    const hasProfileImage = !!state.profile_image;
+    profilePreview.innerHTML = hasProfileImage ? `<img src="${esc(state.profile_image)}" alt="Event logo">` : `<span class="profile-photo-plus" aria-hidden="true">+</span><span class="sr-only">Add event logo</span>`;
+    profilePreview.title = hasProfileImage ? 'Change event logo' : 'Add event logo';
+    $('#remove-profile-image').hidden = !hasProfileImage;
 
     $('#theme-row').innerHTML = Object.keys(themes).map(name => `<button class="theme-dot ${state.theme === name ? 'active' : ''}" data-theme="${name}" style="--theme:${themes[name].header}"></button>`).join('');
     $('#layout-row').innerHTML = layouts.map(name => `<button class="layout-card ${state.layout === name ? 'active' : ''}" data-layout="${name}"><span></span><strong>${name.replace('-', ' ')}</strong></button>`).join('');
     $('#social-picker').innerHTML = platforms.map(p => {
       const existing = (state.socials || []).find(s => s.platform === p);
-      return `<label class="social-chip ${existing ? 'active' : ''}"><input type="checkbox" data-platform="${p}" ${existing ? 'checked' : ''}>${socialLabel(p)} ${p}</label>${existing ? `<input class="social-url" data-platform-url="${p}" value="${esc(existing.url || '')}" placeholder="${p} URL">` : ''}`;
+      return `<label class="social-chip ${existing ? 'active' : ''}"><input type="checkbox" data-platform="${p}" ${existing ? 'checked' : ''}><span class="social-chip-icon ${socialClass(p)}">${socialIcon(p)}</span><strong>${p}</strong></label>${existing ? `<input class="social-url" data-platform-url="${p}" value="${esc(existing.url || '')}" placeholder="${p} URL">` : ''}`;
     }).join('');
-    $('#social-style-row').innerHTML = ['original','black','white'].map(v => `<label><input type="radio" name="socialStyle" value="${v}" ${state.social_style === v ? 'checked' : ''}> ${v}</label>`).join('');
-    $('#social-placement-row').innerHTML = ['top','bottom'].map(v => `<label><input type="radio" name="socialPlacement" value="${v}" ${state.social_placement === v ? 'checked' : ''}> ${v} of page</label>`).join('');
-    $('#block-shape-row').innerHTML = ['pill','rounded','sharp','outline-pill','outline-rectangle'].map(v => `<button class="shape-sample ${state.block_style?.shape === v ? 'active' : ''}" data-shape="${v}">${v}</button>`).join('');
-    $('#block-shadow-row').innerHTML = ['none','soft','hard'].map(v => `<button class="shadow-sample ${state.block_style?.shadow === v ? 'active' : ''}" data-shadow="${v}">${v}</button>`).join('');
+    const socialStyles = [
+      {value:'original',label:'App colors',sample:'<i class="fa-brands fa-instagram"></i><i class="fa-brands fa-facebook-f"></i>'},
+      {value:'black',label:'Black',sample:'<i class="fa-brands fa-instagram"></i>'},
+      {value:'white',label:'White',sample:'<i class="fa-brands fa-instagram"></i>'},
+      {value:'theme',label:'Theme',sample:'<i class="fa-brands fa-instagram"></i>'}
+    ];
+    $('#social-style-row').innerHTML = socialStyles.map(item => `<label class="social-style-choice style-${item.value} ${state.social_style === item.value ? 'active' : ''}" style="${socialThemeVars()}"><input type="radio" name="socialStyle" value="${item.value}" ${state.social_style === item.value ? 'checked' : ''}><span class="social-style-preview">${item.sample}</span><strong>${item.label}</strong></label>`).join('');
+    $('#social-placement-row').innerHTML = ['top','bottom'].map(v => `<label class="social-placement-choice ${state.social_placement === v ? 'active' : ''}"><input type="radio" name="socialPlacement" value="${v}" ${state.social_placement === v ? 'checked' : ''}><span class="placement-preview is-${v}"><i></i></span><strong>${v === 'top' ? 'Top of page' : 'Bottom of page'}</strong></label>`).join('');
+    const styleLabels = {'pill':'Pill','rounded':'Rounded','sharp':'Square','outline-pill':'Outline pill','outline-rectangle':'Outline box'};
+    $('#block-shape-row').innerHTML = ['pill','rounded','sharp','outline-pill','outline-rectangle'].map(v => `<button class="shape-sample shape-sample--${v} ${state.block_style?.shape === v ? 'active' : ''}" data-shape="${v}" aria-label="${styleLabels[v]}"><span class="style-demo"><i></i></span><strong>${styleLabels[v]}</strong></button>`).join('');
+    $('#block-shadow-row').innerHTML = ['none','soft','hard'].map(v => `<button class="shadow-sample shadow-sample--${v} ${state.block_style?.shadow === v ? 'active' : ''}" data-shadow="${v}" aria-label="${v} shadow"><span class="style-demo"><i></i></span><strong>${v}</strong></button>`).join('');
     $$('.segmented').forEach(group => {
       const [obj, key] = group.dataset.bind.split('.');
       $$('button', group).forEach(btn => btn.classList.toggle('active', state[obj]?.[key] === btn.dataset.value));
+    });
+    $$('[data-mode-owner][data-mode-field]').forEach(field => {
+      const owner = field.dataset.modeOwner;
+      field.hidden = state[owner]?.mode !== field.dataset.modeField;
     });
     renderBlockTypeMenu();
   }
@@ -355,6 +442,7 @@
     }
     cursor[parts[0]] = value;
   }
+  function setEventPath(path,value){const parts=path.split('.');let cursor=state.event;while(parts.length>1){const key=parts.shift();if(cursor[key]===undefined||cursor[key]===null)cursor[key]=/^\d+$/.test(parts[0])?[]:{};cursor=cursor[key];}cursor[parts[0]]=value;}
 
   function textInput(path, label, max, placeholder='') {
     const value = getPath(path) || '';
@@ -377,6 +465,12 @@
     if (!wrap || !editor) return;
     wrap.hidden = (state.page_type || 'creator') !== 'corporate';
     if (wrap.hidden) return;
+    const structuredHeading = $('#structured-page-heading');
+    const structuredHelp = $('#structured-page-help');
+    if (structuredHeading) structuredHeading.textContent = state.page_type === 'event' ? 'Event Page Content' : 'Company Page Content';
+    if (structuredHelp) structuredHelp.textContent = state.page_type === 'event'
+      ? 'Add event details, registration, schedule, venue, and ticket links.'
+      : 'Add company details, services, documents, meetings, and contact routes.';
     const c = state.corporate = mergeCorporate(state.corporate);
     const slotInputs = (key, count, label, max) => Array.from({ length: count }, (_, i) => textInput(`${key}.${i}`, `${label} ${i + 1}`, max)).join('');
     const linkInputs = Array.from({ length: 3 }, (_, i) => `<div class="corp-repeat-item"><strong>Link ${i + 1}</strong>${textInput(`links.${i}.label`, 'Label', 60)}${textInput(`links.${i}.url`, 'URL', 1200)}</div>`).join('');
@@ -396,6 +490,37 @@
       <div class="corp-editor-section"><h3>Request Quote</h3><div class="form-grid">${textInput('quote_title', 'Title', 80)}${areaInput('quote_description', 'Description', 180)}${textInput('quote_button_label', 'Button label', 40)}</div></div>
       <div class="corp-editor-section"><h3>Card Area</h3><p class="muted-row">Use text, YouTube/Vimeo video links, or PDF links. One card spans the row; two cards split 2 columns and 1 column; three cards use equal columns.</p><div class="corp-repeat-grid">${cardInputs}</div><button class="small-btn" type="button" data-corp-add="cards">Add card</button></div>
       <div class="corp-editor-section"><h3>Team</h3><div class="form-grid">${textInput('team.title', 'Section title', 30)}${areaInput('team.description', 'Section description', 150)}</div><div class="corp-repeat-grid">${memberInputs}</div><button class="small-btn" type="button" data-corp-add="team.members">Add team member</button></div>`;
+  }
+
+  function eventInput(path,label,type='text',required=false,placeholder='',attributes=''){
+    const value=path.split('.').reduce((o,k)=>o?.[k],state.event) ?? '';
+    return `<label>${esc(label)}${required?'<b class="required-mark">Required</b>':''}<input data-event-path="${esc(path)}" type="${type}" value="${esc(value)}" ${required?'required':''} placeholder="${esc(placeholder)}" ${attributes}></label>`;
+  }
+  const EVENT_COUNTRIES = ['Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon','Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica','Cote d’Ivoire','Croatia','Cuba','Cyprus','Czechia','Democratic Republic of the Congo','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe'];
+  function eventCountrySelect(){
+    const value=String(state.event.country||'');
+    const countries=EVENT_COUNTRIES.includes(value)||!value?EVENT_COUNTRIES:[value,...EVENT_COUNTRIES];
+    return `<label>Country<b class="required-mark">Required</b><select data-event-path="country" required><option value="">Select country</option>${countries.map(country=>`<option value="${esc(country)}" ${country===value?'selected':''}>${esc(country)}</option>`).join('')}</select></label>`;
+  }
+  function renderEventBuilder(){
+    const wrap=$('#event-builder'), generic=$('#generic-builder'); if(!wrap||!generic)return;
+    const active=(state.page_type||'creator')==='event'; wrap.hidden=!active; generic.hidden=active; if(!active)return;
+    const e=state.event=mergeEvent(state.event);
+    const tickets=e.tickets.map((t,i)=>`<article class="event-ticket-editor"><div class="event-ticket-head"><strong>Ticket ${i+1}</strong>${e.tickets.length>1?`<button type="button" data-event-remove-ticket="${i}" aria-label="Remove ticket"><i class="fa-solid fa-trash"></i></button>`:''}</div><div class="event-form-grid">${eventInput(`tickets.${i}.name`,'Ticket name','text',true,'General Admission')}${eventInput(`tickets.${i}.price_minor`,'Price (minor units)','number',true,'0','min="1" step="1"')}${eventInput(`tickets.${i}.quantity_total`,'Quantity','number',true,'100',`min="1" max="${Math.max(1,Number(e.capacity)||1)}" step="1"`)}${eventInput(`tickets.${i}.max_per_order`,'Max per order','number',true,'10','min="1" max="100" step="1"')}</div><label>Description<textarea data-event-path="tickets.${i}.description" placeholder="What this ticket includes">${esc(t.description||'')}</textarea></label></article>`).join('');
+    const ticketing=e.attendance_type==='ticketed'?`<section class="event-editor-card"><div class="event-section-title"><span>03</span><div><h2>Ticketing</h2><p>Paid attendees provide their name and email; phone is optional at checkout.</p></div></div><div class="event-form-grid">${eventInput('currency','Currency','text',true,'NGN','maxlength="3" pattern="[A-Za-z]{3}"')}</div><div class="event-ticket-list">${tickets||'<p class="event-empty-note">Add at least one paid ticket type.</p>'}</div><button class="event-add-ticket" type="button" id="event-add-ticket"><i class="fa-solid fa-plus"></i>Add ticket type</button><p class="event-cap-note">Combined ticket quantity cannot exceed the event capacity of <strong>${esc(e.capacity||0)}</strong>.</p></section>`:'';
+    wrap.innerHTML=`<section class="event-editor-hero"><div><span>EVENT SETUP</span><h1>Build the event, not a generic page.</h1><p>Date, venue, country and a non-zero capacity are required. City is optional.</p></div><a href="event_orders.php?page_id=${state.id}"><i class="fa-solid fa-users"></i> Attendees & check-in</a></section><section class="event-editor-card"><div class="event-section-title"><span>01</span><div><h2>Event essentials</h2><p>The information attendees need first.</p></div></div><div class="event-form-grid"><label>Format<select data-event-path="format"><option value="physical" ${e.format==='physical'?'selected':''}>Physical</option><option value="virtual" ${e.format==='virtual'?'selected':''}>Virtual</option><option value="hybrid" ${e.format==='hybrid'?'selected':''}>Hybrid</option></select></label>${eventInput('start_at','Start date & time','datetime-local',true)}${eventInput('end_at','End date & time','datetime-local',true)}${eventInput('venue','Venue / location','text',true,'Venue name or online')}${eventCountrySelect()}${eventInput('city','City','text',false,'City (optional)')}${eventInput('virtual_url','Virtual event URL','url',false,'https://')}${eventInput('organizer_name','Organizer','text',false,'Organizer name')}${eventInput('contact_email','Contact email','email',false,'events@example.com')}${eventInput('capacity','Event capacity','number',true,'1','min="1" step="1"')}</div></section><section class="event-editor-card"><div class="event-section-title"><span>02</span><div><h2>Attendance requirement</h2><p>Choose how people enter this event.</p></div></div><div class="attendance-options"><label class="attendance-option ${e.attendance_type==='open'?'active':''}"><input type="radio" name="attendance_type" data-event-path="attendance_type" value="open" ${e.attendance_type==='open'?'checked':''}><span><strong>Open event</strong><small>No registration or ticket is required.</small></span></label><label class="attendance-option ${e.attendance_type==='ticketed'?'active':''}"><input type="radio" name="attendance_type" data-event-path="attendance_type" value="ticketed" ${e.attendance_type==='ticketed'?'checked':''}><span><strong>Paid / ticketed event</strong><small>Collect attendee name and email, with phone optional, then complete ticket checkout.</small></span></label></div></section>${ticketing}`;
+  }
+
+  function validateEvent(){
+    const e=state.event;
+    if(!e.start_at||!e.end_at||!e.venue||!String(e.country||'').trim())return 'Add the required date, venue and country.';
+    if(Number(e.capacity)<1)return 'Event capacity must be at least 1.';
+    if(e.attendance_type!=='ticketed')return '';
+    if(!e.tickets.length)return 'Add at least one ticket type.';
+    if(e.tickets.some(ticket=>!String(ticket.name||'').trim()||Number(ticket.price_minor)<1||Number(ticket.quantity_total)<1))return 'Every ticket needs a name, price and quantity.';
+    const quantity=e.tickets.reduce((total,ticket)=>total+Number(ticket.quantity_total||0),0);
+    if(quantity>Number(e.capacity))return `Ticket quantity (${quantity}) cannot exceed event capacity (${e.capacity}).`;
+    return '';
   }
 
   function renderAnalyticsPanel() {
@@ -468,7 +593,7 @@
     }
   }
 
-  function rerender() { renderBlocks(); renderDesignControls(); renderCorporateControls(); renderPreview(); }
+  function rerender() { renderBlocks(); renderDesignControls(); renderCorporateControls(); renderEventBuilder(); renderPreview(); }
 
   function fileToDataUrl(file, cb) {
     if (!file || !file.type.startsWith('image/')) return;
@@ -554,6 +679,7 @@
   });
 
   document.addEventListener('change', e => {
+    if (e.target.dataset.eventPath) { setEventPath(e.target.dataset.eventPath,e.target.type==='number'?Number(e.target.value):e.target.value); markDirty(); if(e.target.dataset.eventPath==='attendance_type'||e.target.dataset.eventPath==='capacity')rerender();else renderPreview(); return; }
     if (e.target.dataset.corpFile) {
       fileToDataUrl(e.target.files[0], data => { setPath(e.target.dataset.corpFile, data); markDirty(); rerender(); });
       return;
@@ -564,13 +690,7 @@
       return;
     }
     if (e.target.id === 'font-select') state.font = e.target.value;
-    else if (e.target.id === 'page-type-select') {
-      const nextType = e.target.value === 'corporate' ? 'corporate' : 'creator';
-      if (nextType === state.page_type) return;
-      state.page_type = nextType;
-    }
-    else if (e.target.id === 'header-fit') state.header.fit = e.target.value;
-    else if (e.target.id === 'hide-branding') state.branding.hide_xinng_logo = e.target.checked;
+    else if (e.target.id === 'hide-branding') state.branding.hide_xinng_logo = !!config.canRemoveBranding && e.target.checked;
     else if (e.target.name === 'socialStyle') state.social_style = e.target.value;
     else if (e.target.name === 'socialPlacement') state.social_placement = e.target.value;
     else if (e.target.dataset.platform) {
@@ -581,13 +701,15 @@
       const s = (state.socials || []).find(item => item.platform === e.target.dataset.platformUrl);
       if (s) s.url = e.target.value;
     } else if (e.target.id === 'profile-image-input') fileToDataUrl(e.target.files[0], data => { state.profile_image = data; markDirty(); rerender(); return; });
-    else if (e.target.id === 'header-image-input') fileToDataUrl(e.target.files[0], data => { state.header.image = data; state.header.mode = 'image'; markDirty(); rerender(); return; });
+    else if (e.target.id === 'header-image-input') fileToDataUrl(e.target.files[0], data => { state.header.image = data; state.header.mode = 'image'; if(state.page_type==='event') state.event.cover_image=data; markDirty(); rerender(); return; });
     else if (e.target.id === 'background-image-input') fileToDataUrl(e.target.files[0], data => { state.background.image = data; state.background.mode = 'image'; markDirty(); rerender(); return; });
     else return;
     markDirty(); rerender();
   });
 
   document.addEventListener('click', e => {
+    if(e.target.closest('#event-add-ticket')){state.event.tickets.push({id:0,name:'',description:'',price_minor:1,quantity_total:1,min_per_order:1,max_per_order:10,is_active:true});markDirty();rerender();return;}
+    const removeTicket=e.target.closest('[data-event-remove-ticket]');if(removeTicket){state.event.tickets.splice(Number(removeTicket.dataset.eventRemoveTicket),1);markDirty();rerender();return;}
     const addCorp = e.target.closest('[data-corp-add]');
     if (addCorp) {
       const target = addCorp.dataset.corpAdd;
@@ -618,15 +740,22 @@
 
   $('#publish-page').addEventListener('click', async () => {
     const button = $('#publish-page');
+    const eventError=state.page_type==='event'?validateEvent():'';
+    if(eventError){button.disabled=false;button.textContent='Fix event details';setSaveState('error',eventError);$('#event-builder')?.scrollIntoView({behavior:'smooth',block:'start'});return;}
     button.disabled = true; button.textContent = 'Publishing...';
-    const response = await fetch('api/pages.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _method:'PATCH', csrf_token: config.csrf, id: state.id, state })
-    });
-    const data = await response.json().catch(() => ({ ok:false, error:'Invalid response' }));
-    if (data.ok) { dirty = false; button.textContent = 'Published'; $('#builder-url-text').textContent = data.public_url.replace(/^https?:\/\//,''); }
-    else { button.disabled = false; button.textContent = 'Publish changes'; console.error(data.error || 'Unable to publish page.'); }
+    setSaveState('saving','Saving changes…');
+    try {
+      const response = await fetch('api/pages.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ _method:'PATCH', csrf_token: config.csrf, id: state.id, state })
+      });
+      const data = await response.json().catch(() => ({ ok:false, error:'Invalid response' }));
+      if (data.ok) { if(data.event)state.event=mergeEvent(data.event);dirty = false; button.textContent = 'Published'; setSaveState('saved','All changes saved'); $('#builder-url-text').textContent = data.public_url.replace(/^https?:\/\//,''); }
+      else { button.disabled = false; button.textContent = 'Try publishing again'; setSaveState('error','Changes were not saved'); console.error(data.error || 'Unable to publish page.'); }
+    } catch (error) {
+      button.disabled = false; button.textContent = 'Try publishing again'; setSaveState('error','Changes were not saved'); console.error(error);
+    }
   });
 
   rerender();
