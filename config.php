@@ -746,23 +746,35 @@ function xinng_public_base_url(): string {
 
 function xinng_migrate_http_public_urls(PDO $pdo): void {
 	$base = xinng_public_base_url();
-	$host = preg_replace('#^https?://#i', '', $base);
-	$host = preg_replace('#/.*$#', '', $host);
-	if ($host === '') return;
-	$httpBase = 'http://' . $host;
-	$httpsBase = 'https://' . $host;
+	$publicHost = preg_replace('#^https?://#i', '', $base);
+	$publicHost = preg_replace('#/.*$#', '', $publicHost);
+	if ($publicHost === '') return;
+	$httpsBase = 'https://' . $publicHost;
 	$tables = [
 		['qr_codes', 'destination_url'],
 		['short_links', 'destination_url'],
 		['qr_codes', 'qr_image_url'],
 	];
 	foreach ($tables as [$table, $column]) {
-		$stmt = $pdo->prepare("SELECT id, {$column} FROM {$table} WHERE {$column} LIKE ?");
-		$stmt->execute(['http://%']);
+		$stmt = $pdo->prepare("SELECT id, {$column} FROM {$table} WHERE {$column} LIKE ? OR {$column} LIKE ? OR {$column} LIKE ? OR {$column} LIKE ?");
+		$stmt->execute(['http://%', 'https://localhost/xinngqr/%', 'https://127.0.0.1/xinngqr/%', 'https://[::1]/xinngqr/%']);
 		while ($row = $stmt->fetch()) {
 			$url = (string)($row[$column] ?? '');
 			if ($url === '') continue;
-			$normalized = preg_replace('#^http://#i', 'https://', $url);
+			$parts = parse_url($url);
+			$sourceHost = strtolower((string)($parts['host'] ?? ''));
+			$path = (string)($parts['path'] ?? '');
+			$isLocalHost = in_array($sourceHost, ['localhost', '127.0.0.1', '::1'], true);
+			// Remove the legacy XAMPP project folder when rebasing imported URLs.
+			if ($isLocalHost && preg_match('#^/xinngqr/(.+)$#i', $path, $matches)) {
+				$normalized = $base . '/' . ltrim($matches[1], '/');
+				if (!empty($parts['query'])) $normalized .= '?' . $parts['query'];
+				if (!empty($parts['fragment'])) $normalized .= '#' . $parts['fragment'];
+			} elseif ($isLocalHost) {
+				continue;
+			} else {
+				$normalized = preg_replace('#^http://#i', 'https://', $url);
+			}
 			if ($normalized === $url) continue;
 			if (stripos($normalized, $httpsBase) === 0 || stripos($normalized, 'https://') === 0) {
 				$up = $pdo->prepare("UPDATE {$table} SET {$column} = ? WHERE id = ?");
@@ -830,6 +842,20 @@ function xinng_ensure_credit_tables(PDO $pdo): void {
 			INDEX idx_credit_transactions_created_at (created_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	");
+
+	$transactionIdIndex = $pdo->prepare("
+		SELECT 1
+		FROM information_schema.statistics
+		WHERE table_schema = DATABASE()
+			AND table_name = 'credit_transactions'
+			AND column_name = 'id'
+			AND seq_in_index = 1
+		LIMIT 1
+	");
+	$transactionIdIndex->execute();
+	if (!$transactionIdIndex->fetchColumn()) {
+		$pdo->exec("ALTER TABLE credit_transactions ADD INDEX idx_credit_transactions_id (id)");
+	}
 
 	$pdo->exec("
 		CREATE TABLE IF NOT EXISTS bank_transfer_receipts (
