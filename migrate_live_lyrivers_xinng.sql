@@ -1,3 +1,7 @@
+-- SUPERSEDED FOR LIVE CPANEL IMPORT: do not import this older file.
+-- It contains DROP TABLE statements and does not include the merged source data.
+-- Use the private Downloads/lyrivers_xinng_merged_one_import.sql instead;
+-- see docs/live-database-merge-cpanel.md for its checksum and validation steps.
 -- MariaDB dump 10.19  Distrib 10.4.32-MariaDB, for Win64 (AMD64)
 --
 -- Host: localhost    Database: lyrivers_xinng
