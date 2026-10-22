@@ -29,6 +29,7 @@ coverage/
 # Local database export / dev artifacts
 *.sqlite
 *.sqlite3
+/.mysql-recovery-backups/
 
 # Keep public assets tracked when needed, but ignore generated uploads
 uploads/**
