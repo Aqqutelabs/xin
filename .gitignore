@@ -30,6 +30,7 @@ coverage/
 *.sqlite
 *.sqlite3
 /.mysql-recovery-backups/
+/migrate_live_lyrivers_xinng.sql
 
 # Keep public assets tracked when needed, but ignore generated uploads
 uploads/**
