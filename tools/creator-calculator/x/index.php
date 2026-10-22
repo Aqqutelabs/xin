@@ -54,6 +54,7 @@ $error = static function (string $key) use ($errors, $e): void { echo '<span cla
  <script src="<?= $e($base) ?>/assets/js/creator-calculator.js?v=<?= filemtime(__DIR__ . '/../../../assets/js/creator-calculator.js') ?>" defer></script>
  <script src="<?= $e($base) ?>/assets/js/cursor-dragon.js?v=<?= filemtime(__DIR__ . '/../../../assets/js/cursor-dragon.js') ?>" defer></script>
  <script src="<?= $e($base) ?>/assets/js/creator-share.js?v=<?= filemtime(__DIR__ . '/../../../assets/js/creator-share.js') ?>" defer></script>
+ <?php require __DIR__ . '/../../../includes/google-analytics.php'; ?>
 </head>
 <body>
  <a class="skip-link" href="#calculator">Skip to calculator</a>

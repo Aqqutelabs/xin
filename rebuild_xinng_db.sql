@@ -17,10 +17,19 @@ DROP TABLE IF EXISTS page_theme_settings;
 DROP TABLE IF EXISTS social_links;
 DROP TABLE IF EXISTS links;
 DROP TABLE IF EXISTS pages;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS subscriptions;
+DROP TABLE IF EXISTS plans;
+DROP TABLE IF EXISTS bank_transfer_receipts;
 DROP TABLE IF EXISTS credit_transactions;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS password_reset;
+DROP TABLE IF EXISTS auth_events;
+DROP TABLE IF EXISTS organization_activity;
+DROP TABLE IF EXISTS admin_activity;
+DROP TABLE IF EXISTS organization_members;
+DROP TABLE IF EXISTS organizations;
 DROP TABLE IF EXISTS users;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -308,6 +317,81 @@ CREATE TABLE password_resets (
     INDEX idx_password_resets_expires_at (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE auth_events (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NULL,
+    event_type VARCHAR(64) NOT NULL,
+    outcome VARCHAR(32) NOT NULL,
+    identifier_hash CHAR(64) NULL,
+    ip_hash CHAR(64) NULL,
+    user_agent VARCHAR(255) NULL,
+    metadata JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_auth_events_identifier (event_type, identifier_hash, created_at),
+    INDEX idx_auth_events_ip (event_type, ip_hash, created_at),
+    INDEX idx_auth_events_user (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE organizations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    slug VARCHAR(80) NOT NULL UNIQUE,
+    created_by BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
+    CONSTRAINT fk_organizations_creator FOREIGN KEY (created_by) REFERENCES users(id),
+    INDEX idx_organizations_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE organization_members (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'viewer',
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    invited_by BIGINT UNSIGNED NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_organization_members_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_members_inviter FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_organization_member (organization_id, user_id),
+    INDEX idx_organization_members_user (user_id, status),
+    INDEX idx_organization_members_org (organization_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE organization_activity (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    actor_user_id BIGINT UNSIGNED NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    target_user_id BIGINT UNSIGNED NULL,
+    metadata JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_organization_activity_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_activity_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
+    CONSTRAINT fk_organization_activity_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_organization_activity_org (organization_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE admin_activity (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id BIGINT UNSIGNED NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    target_type VARCHAR(32) NULL,
+    target_id BIGINT UNSIGNED NULL,
+    metadata JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_admin_activity_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
+    INDEX idx_admin_activity_actor (actor_user_id, created_at),
+    INDEX idx_admin_activity_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE credit_transactions (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,
@@ -321,6 +405,25 @@ CREATE TABLE credit_transactions (
     status ENUM('pending','completed','failed') NOT NULL DEFAULT 'completed',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_credit_transactions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE bank_transfer_receipts (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    credit_transaction_id BIGINT UNSIGNED NOT NULL,
+    package_id VARCHAR(40) NOT NULL,
+    expected_amount INT NOT NULL,
+    currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+    receipt_path VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(190) NOT NULL,
+    status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+    review_note VARCHAR(255) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_bank_transfer_receipts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_bank_transfer_receipts_transaction FOREIGN KEY (credit_transaction_id) REFERENCES credit_transactions(id) ON DELETE CASCADE,
+    INDEX idx_bank_transfer_receipts_user (user_id),
+    INDEX idx_bank_transfer_receipts_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE page_theme_settings (
@@ -366,3 +469,48 @@ VALUES
 ('Free','free',0.00,0.00,'NGN',1,5,FALSE,FALSE,FALSE,FALSE,FALSE,TRUE),
 ('Pro','pro',3000.00,30000.00,'NGN',3,50,FALSE,TRUE,TRUE,TRUE,FALSE,TRUE),
 ('Business','business',10000.00,100000.00,'NGN',10,200,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE);
+
+CREATE TABLE subscriptions (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    plan_id BIGINT UNSIGNED NOT NULL,
+    status ENUM('active','trialing','past_due','cancelled','expired') DEFAULT 'active',
+    payment_provider ENUM('paystack','flutterwave','stripe','manual') DEFAULT 'paystack',
+    billing_interval ENUM('monthly','yearly') NULL,
+    provider_customer_id VARCHAR(190) NULL,
+    provider_subscription_id VARCHAR(190) NULL,
+    starts_at DATETIME NOT NULL,
+    ends_at DATETIME NULL,
+    renews_at DATETIME NULL,
+    cancelled_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rebuild_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_rebuild_subscriptions_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE RESTRICT,
+    INDEX idx_rebuild_subscriptions_user (user_id, status),
+    INDEX idx_rebuild_subscriptions_plan (plan_id),
+    INDEX idx_rebuild_subscriptions_renews (renews_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE payments (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    subscription_id BIGINT UNSIGNED NULL,
+    plan_id BIGINT UNSIGNED NULL,
+    billing_interval ENUM('monthly','yearly') NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'NGN',
+    payment_provider ENUM('paystack','flutterwave','stripe','manual') DEFAULT 'paystack',
+    provider_reference VARCHAR(190) NULL UNIQUE,
+    status ENUM('pending','successful','failed','refunded') DEFAULT 'pending',
+    paid_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rebuild_payments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_rebuild_payments_subscription FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL,
+    CONSTRAINT fk_rebuild_payments_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE SET NULL,
+    INDEX idx_rebuild_payments_user (user_id),
+    INDEX idx_rebuild_payments_status (status),
+    INDEX idx_rebuild_payments_subscription (subscription_id),
+    INDEX idx_rebuild_payments_plan (plan_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

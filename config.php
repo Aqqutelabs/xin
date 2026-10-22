@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/includes/brand.php';
+require_once __DIR__ . '/includes/rbac.php';
+require_once __DIR__ . '/includes/workspace-navigation.php';
+require_once __DIR__ . '/includes/workspace-search.php';
+require_once __DIR__ . '/includes/workspace-search.php';
 // Load simple .env file if present (KEY=VALUE lines). This is a tiny loader
 // to avoid requiring external libraries like vlucas/phpdotenv for local setups.
 function xinng_load_dotenv(string $path): void {
@@ -337,6 +341,245 @@ function verify_csrf_token(?string $token): bool {
 	return hash_equals($_SESSION['_csrf_token'], $token);
 }
 
+function xinng_normalize_email(string $email): string {
+	return mb_strtolower(trim($email), 'UTF-8');
+}
+
+function xinng_password_error(string $password): ?string {
+	if (strlen($password) < 8) return 'Password must be at least 8 characters.';
+	if (!preg_match('/[A-Za-z]/', $password) || !preg_match('/\d/', $password)) {
+		return 'Password must include at least one letter and one number.';
+	}
+	return null;
+}
+
+function xinng_ensure_auth_security_tables(PDO $pdo): void {
+	static $readyConnections = [];
+	$connectionId = spl_object_id($pdo);
+	if (isset($readyConnections[$connectionId])) return;
+	$pdo->exec("CREATE TABLE IF NOT EXISTS auth_events (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		user_id BIGINT UNSIGNED NULL,
+		event_type VARCHAR(64) NOT NULL,
+		outcome VARCHAR(32) NOT NULL,
+		identifier_hash CHAR(64) NULL,
+		ip_hash CHAR(64) NULL,
+		user_agent VARCHAR(255) NULL,
+		metadata JSON NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT fk_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+		INDEX idx_auth_events_identifier (event_type, identifier_hash, created_at),
+		INDEX idx_auth_events_ip (event_type, ip_hash, created_at),
+		INDEX idx_auth_events_user (user_id, created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+	$readyConnections[$connectionId] = true;
+}
+
+function xinng_auth_hash(string $value): ?string {
+	$value = trim($value);
+	return $value === '' ? null : hash('sha256', $value);
+}
+
+function xinng_auth_ip(): string {
+	return trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+}
+
+function xinng_record_auth_event(PDO $pdo, string $eventType, string $outcome, ?int $userId = null, string $identifier = '', array $metadata = []): void {
+	xinng_ensure_auth_security_tables($pdo);
+	$stmt = $pdo->prepare('INSERT INTO auth_events (user_id, event_type, outcome, identifier_hash, ip_hash, user_agent, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())');
+	$stmt->execute([
+		$userId && $userId > 0 ? $userId : null,
+		substr($eventType, 0, 64),
+		substr($outcome, 0, 32),
+		xinng_auth_hash(xinng_normalize_email($identifier)),
+		xinng_auth_hash(xinng_auth_ip()),
+		substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255) ?: null,
+		$metadata ? json_encode($metadata, JSON_UNESCAPED_SLASHES) : null,
+	]);
+}
+
+function xinng_auth_rate_limited(PDO $pdo, string $eventType, string $identifier, int $limit = 5, int $windowSeconds = 900): bool {
+	xinng_ensure_auth_security_tables($pdo);
+	$identifierHash = xinng_auth_hash(xinng_normalize_email($identifier));
+	$ipHash = xinng_auth_hash(xinng_auth_ip());
+	$stmt = $pdo->prepare('SELECT COUNT(*) FROM auth_events WHERE event_type = ? AND outcome IN ("failed", "requested") AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND) AND ((identifier_hash IS NOT NULL AND identifier_hash = ?) OR (ip_hash IS NOT NULL AND ip_hash = ?))');
+	$stmt->execute([$eventType, max(60, $windowSeconds), $identifierHash, $ipHash]);
+	return (int)$stmt->fetchColumn() >= max(1, $limit);
+}
+
+function xinng_organization_roles(): array {
+	return array_keys(xinng_organization_role_permissions());
+}
+
+function xinng_ensure_workspace_tables(PDO $pdo): void {
+	static $readyConnections = [];
+	$connectionId = spl_object_id($pdo);
+	if (isset($readyConnections[$connectionId])) return;
+	$pdo->exec("CREATE TABLE IF NOT EXISTS organizations (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		uuid CHAR(36) NOT NULL UNIQUE,
+		name VARCHAR(150) NOT NULL,
+		slug VARCHAR(80) NOT NULL UNIQUE,
+		created_by BIGINT UNSIGNED NOT NULL,
+		status VARCHAR(24) NOT NULL DEFAULT 'active',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		deleted_at DATETIME NULL,
+		CONSTRAINT fk_organizations_creator FOREIGN KEY (created_by) REFERENCES users(id),
+		INDEX idx_organizations_status (status)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+	$pdo->exec("CREATE TABLE IF NOT EXISTS organization_members (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		organization_id BIGINT UNSIGNED NOT NULL,
+		user_id BIGINT UNSIGNED NOT NULL,
+		role VARCHAR(32) NOT NULL DEFAULT 'viewer',
+		status VARCHAR(24) NOT NULL DEFAULT 'active',
+		invited_by BIGINT UNSIGNED NULL,
+		joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		CONSTRAINT fk_organization_members_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+		CONSTRAINT fk_organization_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		CONSTRAINT fk_organization_members_inviter FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL,
+		UNIQUE KEY unique_organization_member (organization_id, user_id),
+		INDEX idx_organization_members_user (user_id, status),
+		INDEX idx_organization_members_org (organization_id, status)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+	$pdo->exec("CREATE TABLE IF NOT EXISTS organization_activity (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		organization_id BIGINT UNSIGNED NOT NULL,
+		actor_user_id BIGINT UNSIGNED NOT NULL,
+		event_type VARCHAR(64) NOT NULL,
+		target_user_id BIGINT UNSIGNED NULL,
+		metadata JSON NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT fk_organization_activity_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+		CONSTRAINT fk_organization_activity_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
+		CONSTRAINT fk_organization_activity_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL,
+		INDEX idx_organization_activity_org (organization_id, created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+	$readyConnections[$connectionId] = true;
+}
+
+function xinng_unique_organization_slug(PDO $pdo, string $name): string {
+	$base = slugify($name) ?: 'workspace';
+	$base = substr($base, 0, 68);
+	$slug = $base;
+	$counter = 1;
+	$stmt = $pdo->prepare('SELECT COUNT(*) FROM organizations WHERE slug = ?');
+	while (true) {
+		$stmt->execute([$slug]);
+		if ((int)$stmt->fetchColumn() === 0) return $slug;
+		$counter++;
+		$slug = $base . '-' . $counter;
+	}
+}
+
+function xinng_create_organization(PDO $pdo, int $userId, string $name): int {
+	xinng_ensure_workspace_tables($pdo);
+	$name = trim($name);
+	if ($name === '' || mb_strlen($name, 'UTF-8') > 150) throw new InvalidArgumentException('Organization name must be between 1 and 150 characters.');
+	$slug = xinng_unique_organization_slug($pdo, $name);
+	$ownsTransaction = !$pdo->inTransaction();
+	if ($ownsTransaction) $pdo->beginTransaction();
+	try {
+		$stmt = $pdo->prepare('INSERT INTO organizations (uuid, name, slug, created_by, status, created_at, updated_at) VALUES (UUID(), ?, ?, ?, "active", NOW(), NOW())');
+		$stmt->execute([$name, $slug, $userId]);
+		$organizationId = (int)$pdo->lastInsertId();
+		$pdo->prepare('INSERT INTO organization_members (organization_id, user_id, role, status, invited_by, joined_at, created_at, updated_at) VALUES (?, ?, "owner", "active", ?, NOW(), NOW(), NOW())')->execute([$organizationId, $userId, $userId]);
+		if ($ownsTransaction) $pdo->commit();
+		return $organizationId;
+	} catch (Throwable $e) {
+		if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+		throw $e;
+	}
+}
+
+function xinng_ensure_personal_workspace(PDO $pdo, int $userId, string $userName = 'My'): int {
+	xinng_ensure_workspace_tables($pdo);
+	$stmt = $pdo->prepare('SELECT om.organization_id FROM organization_members om JOIN organizations o ON o.id = om.organization_id WHERE om.user_id = ? AND om.status = "active" AND o.status = "active" AND o.deleted_at IS NULL ORDER BY om.id ASC LIMIT 1');
+	$stmt->execute([$userId]);
+	$existing = (int)$stmt->fetchColumn();
+	if ($existing > 0) return $existing;
+	return xinng_create_organization($pdo, $userId, (trim($userName) ?: 'My') . "'s workspace");
+}
+
+function xinng_user_organizations(PDO $pdo, int $userId): array {
+	xinng_ensure_workspace_tables($pdo);
+	$stmt = $pdo->prepare('SELECT o.id, o.uuid, o.name, o.slug, om.role FROM organization_members om JOIN organizations o ON o.id = om.organization_id WHERE om.user_id = ? AND om.status = "active" AND o.status = "active" AND o.deleted_at IS NULL ORDER BY o.name ASC');
+	$stmt->execute([$userId]);
+	return $stmt->fetchAll();
+}
+
+function xinng_active_organization(PDO $pdo, int $userId, string $userName = 'My'): array {
+	$organizations = xinng_user_organizations($pdo, $userId);
+	if (!$organizations) {
+		xinng_ensure_personal_workspace($pdo, $userId, $userName);
+		$organizations = xinng_user_organizations($pdo, $userId);
+	}
+	$requestedId = filter_var($_SESSION['active_organization_id'] ?? null, FILTER_VALIDATE_INT);
+	foreach ($organizations as $organization) {
+		if ($requestedId && (int)$organization['id'] === (int)$requestedId) return $organization;
+	}
+	$active = $organizations[0];
+	$_SESSION['active_organization_id'] = (int)$active['id'];
+	return $active;
+}
+
+function xinng_organization_membership(PDO $pdo, int $organizationId, int $userId): ?array {
+	xinng_ensure_workspace_tables($pdo);
+	$stmt = $pdo->prepare('SELECT om.*, u.name, u.email FROM organization_members om JOIN users u ON u.id = om.user_id JOIN organizations o ON o.id = om.organization_id WHERE om.organization_id = ? AND om.user_id = ? AND om.status = "active" AND u.status = "active" AND u.deleted_at IS NULL AND o.status = "active" AND o.deleted_at IS NULL LIMIT 1');
+	$stmt->execute([$organizationId, $userId]);
+	return $stmt->fetch() ?: null;
+}
+
+function xinng_user_can_manage_organization(PDO $pdo, int $organizationId, int $userId): bool {
+	return xinng_organization_user_can($pdo, $organizationId, $userId, 'workspace.members.manage');
+}
+
+function xinng_organization_user_can(PDO $pdo, int $organizationId, int $userId, string $permission): bool {
+	if ($organizationId <= 0 || $userId <= 0) return false;
+	$membership = xinng_organization_membership($pdo, $organizationId, $userId);
+	return $membership !== null && xinng_role_can((string)$membership['role'], $permission);
+}
+
+function xinng_record_organization_activity(PDO $pdo, int $organizationId, int $actorUserId, string $eventType, ?int $targetUserId = null, array $metadata = []): void {
+	xinng_ensure_workspace_tables($pdo);
+	$stmt = $pdo->prepare('INSERT INTO organization_activity (organization_id, actor_user_id, event_type, target_user_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+	$stmt->execute([$organizationId, $actorUserId, substr($eventType, 0, 64), $targetUserId, $metadata ? json_encode($metadata, JSON_UNESCAPED_SLASHES) : null]);
+}
+
+function xinng_ensure_admin_tables(PDO $pdo): void {
+	static $readyConnections = [];
+	$connectionId = spl_object_id($pdo);
+	if (isset($readyConnections[$connectionId])) return;
+	$pdo->exec("CREATE TABLE IF NOT EXISTS admin_activity (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		actor_user_id BIGINT UNSIGNED NOT NULL,
+		event_type VARCHAR(64) NOT NULL,
+		target_type VARCHAR(32) NULL,
+		target_id BIGINT UNSIGNED NULL,
+		metadata JSON NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT fk_admin_activity_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
+		INDEX idx_admin_activity_actor (actor_user_id, created_at),
+		INDEX idx_admin_activity_target (target_type, target_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+	$readyConnections[$connectionId] = true;
+}
+
+function xinng_admin_user(PDO $pdo, int $userId): ?array {
+	$stmt = $pdo->prepare('SELECT id, uuid, name, email, role, status, created_at, last_login_at FROM users WHERE id = ? AND role = "admin" AND status = "active" AND deleted_at IS NULL LIMIT 1');
+	$stmt->execute([$userId]);
+	return $stmt->fetch() ?: null;
+}
+
+function xinng_record_admin_activity(PDO $pdo, int $actorUserId, string $eventType, ?string $targetType = null, ?int $targetId = null, array $metadata = []): void {
+	xinng_ensure_admin_tables($pdo);
+	$stmt = $pdo->prepare('INSERT INTO admin_activity (actor_user_id, event_type, target_type, target_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+	$stmt->execute([$actorUserId, substr($eventType, 0, 64), $targetType ? substr($targetType, 0, 32) : null, $targetId, $metadata ? json_encode($metadata, JSON_UNESCAPED_SLASHES) : null]);
+}
+
 function xinng_public_api_user_id(array $payload = []): int {
 	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 	$value = $payload['user_id']
@@ -588,6 +831,27 @@ function xinng_ensure_credit_tables(PDO $pdo): void {
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 	");
 
+	$pdo->exec("
+		CREATE TABLE IF NOT EXISTS bank_transfer_receipts (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			user_id BIGINT UNSIGNED NOT NULL,
+			credit_transaction_id BIGINT UNSIGNED NOT NULL,
+			package_id VARCHAR(40) NOT NULL,
+			expected_amount INT NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			receipt_path VARCHAR(255) NOT NULL,
+			original_filename VARCHAR(190) NOT NULL,
+			status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+			review_note VARCHAR(255) NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			CONSTRAINT fk_bank_transfer_receipts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			CONSTRAINT fk_bank_transfer_receipts_transaction FOREIGN KEY (credit_transaction_id) REFERENCES credit_transactions(id) ON DELETE CASCADE,
+			INDEX idx_bank_transfer_receipts_user (user_id),
+			INDEX idx_bank_transfer_receipts_status (status)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+	");
+
 	try {
 		$pdo->exec("ALTER TABLE users ADD COLUMN credit_balance INT NOT NULL DEFAULT 1000 AFTER password_hash");
 	} catch (PDOException $e) {}
@@ -612,6 +876,68 @@ function xinng_ensure_credit_tables(PDO $pdo): void {
 	try {
 		$pdo->exec("ALTER TABLE credit_transactions ADD COLUMN status ENUM('pending','completed','failed') NOT NULL DEFAULT 'completed' AFTER payment_currency");
 	} catch (PDOException $e) {}
+}
+
+function xinng_ensure_subscription_billing_tables(PDO $pdo): void {
+	static $readyConnections = [];
+	$connectionId = spl_object_id($pdo);
+	if (isset($readyConnections[$connectionId])) return;
+
+	$pdo->exec("CREATE TABLE IF NOT EXISTS subscriptions (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		user_id BIGINT UNSIGNED NOT NULL,
+		plan_id BIGINT UNSIGNED NOT NULL,
+		status ENUM('active','trialing','past_due','cancelled','expired') NOT NULL DEFAULT 'active',
+		payment_provider ENUM('paystack','flutterwave','stripe','manual') NOT NULL DEFAULT 'paystack',
+		billing_interval ENUM('monthly','yearly') NULL,
+		provider_customer_id VARCHAR(190) NULL,
+		provider_subscription_id VARCHAR(190) NULL,
+		starts_at DATETIME NOT NULL,
+		ends_at DATETIME NULL,
+		renews_at DATETIME NULL,
+		cancelled_at DATETIME NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		CONSTRAINT fk_wallet_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		CONSTRAINT fk_wallet_subscriptions_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE RESTRICT,
+		INDEX idx_wallet_subscriptions_user (user_id, status),
+		INDEX idx_wallet_subscriptions_plan (plan_id),
+		INDEX idx_wallet_subscriptions_renews (renews_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+	$pdo->exec("CREATE TABLE IF NOT EXISTS payments (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		user_id BIGINT UNSIGNED NOT NULL,
+		subscription_id BIGINT UNSIGNED NULL,
+		plan_id BIGINT UNSIGNED NULL,
+		billing_interval ENUM('monthly','yearly') NULL,
+		amount DECIMAL(12,2) NOT NULL,
+		currency VARCHAR(10) DEFAULT 'NGN',
+		payment_provider ENUM('paystack','flutterwave','stripe','manual') DEFAULT 'paystack',
+		provider_reference VARCHAR(190) NULL UNIQUE,
+		status ENUM('pending','successful','failed','refunded') DEFAULT 'pending',
+		paid_at DATETIME NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		CONSTRAINT fk_wallet_payments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		CONSTRAINT fk_wallet_payments_subscription FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL,
+		CONSTRAINT fk_wallet_payments_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE SET NULL,
+		INDEX idx_wallet_payments_user (user_id),
+		INDEX idx_wallet_payments_status (status),
+		INDEX idx_wallet_payments_subscription (subscription_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+	$columnExists = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+	foreach ([
+		['subscriptions', 'billing_interval', "ALTER TABLE subscriptions ADD COLUMN billing_interval ENUM('monthly','yearly') NULL AFTER payment_provider"],
+		['payments', 'plan_id', 'ALTER TABLE payments ADD COLUMN plan_id BIGINT UNSIGNED NULL AFTER subscription_id'],
+		['payments', 'billing_interval', "ALTER TABLE payments ADD COLUMN billing_interval ENUM('monthly','yearly') NULL AFTER plan_id"],
+	] as [$table, $column, $alterSql]) {
+		$columnExists->execute([$table, $column]);
+		if (!(int)$columnExists->fetchColumn()) $pdo->exec($alterSql);
+	}
+
+	$readyConnections[$connectionId] = true;
 }
 
 function xinng_ensure_credit_balance(PDO $pdo, int $user_id): int {
@@ -1296,9 +1622,7 @@ function xinng_send_welcome_email(int $userId, string $email, string $name): boo
 		"If you have any questions, we're here to help.\n\n" .
 		"— The Xinng Team";
 	$sent = xinng_send_transactional_email($userId, $email, 'account_created', $subject, $body, false);
-	if ($sent) {
-		xinng_create_notification($pdo, $userId, 'account', 'Welcome to Xinng', 'Your account is ready. Create your first QR code, short link, or page.', 'dashboard.php');
-	}
+	try { xinng_create_notification($pdo, $userId, 'account', 'Welcome to Xinng', 'Your account is ready. Create your first QR code, short link, or page.', 'dashboard.php'); } catch (Throwable $e) { error_log('Welcome notification failed: ' . $e->getMessage()); }
 	return $sent;
 }
 
@@ -1309,7 +1633,9 @@ function xinng_send_password_reset_email(int $userId, string $email, string $res
 	$body = "Hi,\n\nWe received a request to reset your password.\n\nReset it here:\n{$resetUrl}\n\nThis link will expire in 15 minutes.\nIf you didn't request this, you can ignore this email.\n\n— Xinng Security";
 	$sent = xinng_send_transactional_email($userId, $email, 'password_reset', $subject, $body, false);
 	if ($sent) {
-		xinng_create_notification($pdo, $userId, 'security', 'Password reset requested', 'A password reset link was sent to your email address.', 'reset_password.php?token=' . urlencode(parse_url($resetUrl, PHP_URL_QUERY) ?: ''));
+		$resetPath = (string)(parse_url($resetUrl, PHP_URL_PATH) ?: '/reset_password.php');
+		$resetQuery = (string)(parse_url($resetUrl, PHP_URL_QUERY) ?: '');
+		xinng_create_notification($pdo, $userId, 'security', 'Password reset requested', 'A password reset link was sent to your email address.', $resetPath . ($resetQuery !== '' ? '?' . $resetQuery : ''));
 	}
 	return $sent;
 }

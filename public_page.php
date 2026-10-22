@@ -339,6 +339,7 @@ $actionCards = array_values(array_filter($actionCards, static fn($action) => !em
     }
   </style>
   <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/brand.css">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body>
   <main class="corp-page">
@@ -645,6 +646,7 @@ $qrImage = static function (string $url): string {
   <link rel="stylesheet" href="<?= e($appBase) ?>/assets/css/public-page.css">
   <link rel="stylesheet" href="<?= e($appBase) ?>/assets/css/brand.css">
   <script src="<?= e($appBase) ?>/assets/js/public-page.js" defer></script>
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body class="pb-public-body" style="--wall-bg:<?= e($pageBg) ?>;<?= e($backgroundStyle) ?>">
   <main class="pb-public-page" data-theme="<?= e($theme) ?>" data-page-title="<?= e($title) ?>" data-page-url="<?= e($publicUrl) ?>" style="--accent:<?= e($accent) ?>;--block-bg:<?= e($accent) ?>;--block-fg:<?= e($blockFg) ?>;--radius:<?= $shape === 'square' ? '6px' : '18px' ?>;--page-bg:<?= e($pageBg) ?>;--font:<?= e($fontValue) ?>;--title-color:<?= e($titleColor) ?>;--description-color:<?= e($descriptionColor) ?>;--hero-fg:<?= e($heroTextColor) ?>;<?= e($backgroundStyle) ?>">

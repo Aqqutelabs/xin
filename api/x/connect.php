@@ -107,6 +107,7 @@ if (!$configured && http_response_code() < 400) http_response_code(503);
         .error { color: #9c2929; }
         a { color: #176b4a; }
     </style>
+    <?php require __DIR__ . '/../../includes/google-analytics.php'; ?>
 </head>
 <body>
 <main>

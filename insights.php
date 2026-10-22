@@ -84,6 +84,7 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
   <title>Insights - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-workspace-polish">
+  <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
   <style>
     .insights-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(280px, .65fr); gap:18px; }
     .insights-panel { background:#fff; border:1px solid #e7dfd6; border-radius:16px; padding:22px; }
@@ -102,23 +103,19 @@ $rate = $totals['views'] > 0 ? round(($totalActions / $totals['views']) * 100, 1
     @media (max-width:900px) { .insights-grid { grid-template-columns:1fr; } }
     @media (max-width:560px) { .trend { gap:4px; } .trend-bar { width:30%; } .insights-panel { padding:17px; } }
   </style>
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body class="insights-screen workspace-screen">
+<body class="insights-screen workspace-screen workspace-shell-page">
   <div class="dashboard no-preview">
-    <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
-      <div class="account"><div class="account-main"><span class="avatar"><?= e(insights_initials($user_name)) ?></span><span><?= e($displaySlug ?: $user_name) ?></span><span aria-hidden="true">v</span></div><a class="icon-btn" href="logout.php" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
-      <nav><div class="nav-section"><div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
-        <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
-        <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
-        <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
-        <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
-        <a class="nav-item active" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
-        <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-wallet"></i></span>Credits</a>
-      </div></nav>
-    </aside>
+    <?php
+      $sidebarActive = 'insights';
+      $sidebarUserName = $user_name;
+      $sidebarDisplayName = $displaySlug ?: $user_name;
+      $sidebarBottom = ['eyebrow' => 'WORKSPACE PULSE', 'title' => 'Turn attention into action.', 'body' => 'Use your latest views, clicks and scans to decide what to improve next.'];
+      include __DIR__ . '/includes/workspace-sidebar.php';
+    ?>
     <main class="main">
-      <header class="main-header"><div class="header-title"><h1>Insights</h1><span>See what your links, pages, events, and QR campaigns are doing.</span></div><div class="header-actions"><span class="date-chip"><i class="fa-regular fa-calendar"></i>Last 7 days</span><a class="icon-btn" href="notifications.php" title="Notifications" aria-label="Notifications"><i class="fa-solid fa-bell"></i></a></div></header>
+      <?php $workspaceHeaderTitle = 'Insights'; $workspaceHeaderSubtitle = 'See what your links, pages, events, and QR campaigns are doing.'; include __DIR__ . '/includes/workspace-shell-header.php'; ?>
       <div class="content">
         <?php if ($dbError): ?><div class="notice">Database connection is not available.</div><?php endif; ?>
         <section class="workspace-intro insights-intro"><div><span class="workspace-eyebrow">WORKSPACE PULSE</span><h2>Understand what earns attention—and what drives action.</h2><p>Your performance is grouped into views, link clicks, and QR scans so the next decision is obvious.</p></div><div class="insights-rate"><strong><?= e($rate) ?>%</strong><span>action rate</span></div></section>

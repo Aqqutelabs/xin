@@ -4,28 +4,42 @@ session_start();
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
+    $email = xinng_normalize_email((string)($_POST['email'] ?? ''));
     $slug_raw = trim($_POST['slug'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($name === '' || $email === '' || $password === '') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        $errors[] = 'Your session expired. Refresh the page and try again.';
+    } elseif ($name === '' || $email === '' || $password === '') {
         $errors[] = 'All fields are required.';
+    } elseif (mb_strlen($name, 'UTF-8') > 120 || strlen($email) > 190) {
+        $errors[] = 'Name or email is too long.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Provide a valid email address.';
+    } elseif ($passwordError = xinng_password_error($password)) {
+        $errors[] = $passwordError;
     } else {
         $pdo = get_db_connection();
         if (!$pdo) {
             $errors[] = 'Unable to connect to the database.';
         } else {
+            xinng_ensure_auth_security_tables($pdo);
+            if (xinng_auth_rate_limited($pdo, 'signup', $email, 5, 3600)) {
+                $errors[] = 'Too many account creation attempts. Please try again later.';
+            } else {
+                xinng_record_auth_event($pdo, 'signup', 'requested', null, $email);
+            }
             $slug_error = null;
-            if ($slug_raw !== '') {
+            if (!$errors && $slug_raw !== '') {
                 $slug_check = xinng_validate_page_slug($pdo, $slug_raw);
                 if (!$slug_check['ok']) {
                     $slug_error = $slug_check['error'];
                 }
             }
 
-            if ($slug_error) {
+            if ($errors) {
+                // A prior security or validation check already supplied the response.
+            } elseif ($slug_error) {
                 $errors[] = $slug_error;
             } else {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -81,9 +95,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $pdo->commit();
 
-                    xinng_send_welcome_email($newId, $email, $name);
-                    xinng_create_notification($pdo, $newId, 'account', 'Welcome to Xinng', 'Your account has been created and is ready to use.', 'dashboard.php');
+                    try {
+                        xinng_ensure_personal_workspace($pdo, (int)$newId, $name);
+                        xinng_send_welcome_email($newId, $email, $name);
+                        xinng_record_auth_event($pdo, 'signup', 'succeeded', (int)$newId, $email);
+                    } catch (Throwable $sideEffectError) {
+                        error_log('Signup post-creation action failed: ' . $sideEffectError->getMessage());
+                    }
 
+                    session_regenerate_id(true);
                     $_SESSION['user_id'] = $newId;
                     $_SESSION['user_name'] = $name;
                     $_SESSION['new_api_token'] = $apiToken;
@@ -126,6 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/brand.css">
   <link rel="stylesheet" href="assets/css/auth.css?v=<?= filemtime(__DIR__ . '/assets/css/auth.css') ?>">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body class="auth-page">
   <main class="auth-wrap">
@@ -161,11 +182,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <label for="signup-password">Password</label>
         <div class="pw-wrap">
-          <input id="signup-password" name="password" type="password" autocomplete="new-password" required>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" required aria-describedby="signup-password-requirements">
           <button type="button" class="eye-toggle" data-target="signup-password" aria-label="Show password" aria-pressed="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
+        <small id="signup-password-requirements" class="small">Use at least 8 characters, including a letter and a number.</small>
 
         <div class="form-foot">
           <small class="small">By creating an account you agree to our terms.</small>

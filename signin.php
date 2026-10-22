@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/config.php';
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
 /* Temporary authentication diagnostics. Contains stage names and timings only:
  * never credentials, tokens, email addresses, session IDs, or request bodies. */
@@ -30,9 +31,12 @@ xinng_auth_trace('bootstrap.complete');
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     xinng_auth_trace('post.received');
-    $email = trim($_POST['email'] ?? '');
+    $email = xinng_normalize_email((string)($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
-    if ($email === '' || $password === '') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
+        xinng_auth_trace('input.rejected', ['result' => 'csrf']);
+        $errors[] = 'Your session expired. Refresh the page and try again.';
+    } elseif ($email === '' || $password === '') {
         xinng_auth_trace('input.rejected', ['result' => 'missing_fields']);
         $errors[] = 'Both email and password are required.';
     } else {
@@ -40,13 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = get_db_connection();
         xinng_auth_trace('database.connect.finish', ['result' => $pdo ? 'connected' : 'failed']);
         if ($pdo) {
+            xinng_ensure_auth_security_tables($pdo);
+            if (xinng_auth_rate_limited($pdo, 'signin', $email, 5, 900)) {
+                xinng_record_auth_event($pdo, 'signin', 'blocked', null, $email, ['reason' => 'rate_limit']);
+                $errors[] = 'Too many sign-in attempts. Please wait 15 minutes and try again.';
+            } else {
             xinng_auth_trace('user.query.start');
-            $stmt = $pdo->prepare('SELECT id, email, password_hash, name FROM users WHERE email = ? LIMIT 1');
+            $stmt = $pdo->prepare('SELECT id, email, password_hash, name, status FROM users WHERE email = ? LIMIT 1');
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             xinng_auth_trace('user.query.finish', ['user_found' => $user ? 'yes' : 'no']);
             xinng_auth_trace('password.verify.start');
-            if ($user && password_verify($password, $user['password_hash'])) {
+            $passwordValid = $user ? password_verify($password, $user['password_hash']) : password_verify($password, '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');
+            if ($user && $passwordValid && ($user['status'] ?? 'active') === 'active') {
               xinng_auth_trace('password.verify.finish', ['result' => 'valid']);
               xinng_auth_trace('session.start.begin', ['session_status' => (string)session_status()]);
               if (session_status() !== PHP_SESSION_ACTIVE && !session_start()) {
@@ -55,6 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               session_regenerate_id(true);
               $_SESSION['user_id'] = $user['id'];
               $_SESSION['user_name'] = $user['name'];
+              $newHash = password_needs_rehash($user['password_hash'], PASSWORD_DEFAULT) ? password_hash($password, PASSWORD_DEFAULT) : $user['password_hash'];
+              $pdo->prepare('UPDATE users SET password_hash = ?, last_login_at = NOW(), updated_at = NOW() WHERE id = ?')->execute([$newHash, (int)$user['id']]);
+              xinng_record_auth_event($pdo, 'signin', 'succeeded', (int)$user['id'], $email);
               xinng_auth_trace('session.write.complete', ['session_status' => (string)session_status()]);
 
               $device = 'Web browser';
@@ -72,17 +85,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               xinng_auth_trace('session.lock.released', ['session_status' => (string)session_status()]);
 
               xinng_auth_trace('notification.create.start');
-              xinng_create_notification($pdo, (int)$user['id'], 'security', 'Signed in successfully', 'Your account was accessed from this browser session.', 'dashboard.php');
+              try { xinng_create_notification($pdo, (int)$user['id'], 'security', 'Signed in successfully', 'Your account was accessed from this browser session.', 'dashboard.php'); } catch (Throwable $e) { error_log('Login notification failed: ' . $e->getMessage()); }
               xinng_auth_trace('notification.create.finish');
               xinng_auth_trace('login_alert.send.start');
-              xinng_send_login_alert_email((int)$user['id'], $user['email'] ?? $email, $user['name'], $device, $location, $time);
+              try { xinng_send_login_alert_email((int)$user['id'], $user['email'] ?? $email, $user['name'], $device, $location, $time); } catch (Throwable $e) { error_log('Login alert failed: ' . $e->getMessage()); }
               xinng_auth_trace('login_alert.send.finish');
               xinng_auth_trace('redirect.send', ['result' => $redirect]);
               header('Location: ' . $redirect, true, 303);
               exit;
             } else {
                 xinng_auth_trace('password.verify.finish', ['result' => 'invalid']);
+                xinng_record_auth_event($pdo, 'signin', 'failed', $user ? (int)$user['id'] : null, $email, ['reason' => $user && ($user['status'] ?? 'active') !== 'active' ? 'inactive' : 'credentials']);
                 $errors[] = 'Invalid credentials.';
+            }
             }
         } else {
             $errors[] = 'Unable to connect to the database.';
@@ -101,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/brand.css">
   <link rel="stylesheet" href="assets/css/auth.css?v=<?= filemtime(__DIR__ . '/assets/css/auth.css') ?>">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body class="auth-page">
   <main class="auth-wrap">
@@ -122,6 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php endforeach; ?>
 
       <form method="post" class="auth-form" novalidate>
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
         <label for="auth-email">Email address</label>
         <input id="auth-email" autocomplete="email" placeholder="you@example.com" name="email" type="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
 

@@ -66,6 +66,81 @@ CREATE TABLE users (
     INDEX idx_users_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE auth_events (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NULL,
+    event_type VARCHAR(64) NOT NULL,
+    outcome VARCHAR(32) NOT NULL,
+    identifier_hash CHAR(64) NULL,
+    ip_hash CHAR(64) NULL,
+    user_agent VARCHAR(255) NULL,
+    metadata JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_auth_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_auth_events_identifier (event_type, identifier_hash, created_at),
+    INDEX idx_auth_events_ip (event_type, ip_hash, created_at),
+    INDEX idx_auth_events_user (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE organizations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid CHAR(36) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    slug VARCHAR(80) NOT NULL UNIQUE,
+    created_by BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
+    CONSTRAINT fk_organizations_creator FOREIGN KEY (created_by) REFERENCES users(id),
+    INDEX idx_organizations_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE organization_members (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'viewer',
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    invited_by BIGINT UNSIGNED NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_organization_members_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_members_inviter FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_organization_member (organization_id, user_id),
+    INDEX idx_organization_members_user (user_id, status),
+    INDEX idx_organization_members_org (organization_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE organization_activity (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL,
+    actor_user_id BIGINT UNSIGNED NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    target_user_id BIGINT UNSIGNED NULL,
+    metadata JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_organization_activity_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organization_activity_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
+    CONSTRAINT fk_organization_activity_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_organization_activity_org (organization_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE admin_activity (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id BIGINT UNSIGNED NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    target_type VARCHAR(32) NULL,
+    target_id BIGINT UNSIGNED NULL,
+    metadata JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_admin_activity_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
+    INDEX idx_admin_activity_actor (actor_user_id, created_at),
+    INDEX idx_admin_activity_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =========================================================
 -- 2. PAGES
 -- =========================================================
@@ -538,6 +613,7 @@ CREATE TABLE subscriptions (
     status ENUM('active', 'trialing', 'past_due', 'cancelled', 'expired') DEFAULT 'active',
 
     payment_provider ENUM('paystack', 'flutterwave', 'stripe', 'manual') DEFAULT 'paystack',
+    billing_interval ENUM('monthly', 'yearly') NULL,
     provider_customer_id VARCHAR(190) NULL,
     provider_subscription_id VARCHAR(190) NULL,
 
@@ -572,6 +648,8 @@ CREATE TABLE payments (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL,
     subscription_id BIGINT UNSIGNED NULL,
+    plan_id BIGINT UNSIGNED NULL,
+    billing_interval ENUM('monthly', 'yearly') NULL,
 
     amount DECIMAL(12,2) NOT NULL,
     currency VARCHAR(10) DEFAULT 'NGN',
@@ -593,9 +671,13 @@ CREATE TABLE payments (
     CONSTRAINT fk_payments_subscription
         FOREIGN KEY (subscription_id) REFERENCES subscriptions(id)
         ON DELETE SET NULL,
+    CONSTRAINT fk_payments_plan
+        FOREIGN KEY (plan_id) REFERENCES plans(id)
+        ON DELETE SET NULL,
 
     INDEX idx_payments_user_id (user_id),
     INDEX idx_payments_subscription_id (subscription_id),
+    INDEX idx_payments_plan_id (plan_id),
     INDEX idx_payments_status (status),
     INDEX idx_payments_provider_reference (provider_reference),
     INDEX idx_payments_paid_at (paid_at)

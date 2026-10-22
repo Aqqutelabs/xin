@@ -17,7 +17,7 @@ if (!is_array($payload)) {
 }
 
 $name = trim((string)($payload['name'] ?? ''));
-$email = trim((string)($payload['email'] ?? ''));
+$email = xinng_normalize_email((string)($payload['email'] ?? ''));
 $password = (string)($payload['password'] ?? '');
 $requestedSlug = trim((string)($payload['slug'] ?? ''));
 
@@ -36,6 +36,11 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 	echo json_encode(['ok' => false, 'error' => 'invalid_email']);
 	exit;
 }
+if ($passwordError = xinng_password_error($password)) {
+	http_response_code(422);
+	echo json_encode(['ok' => false, 'error' => 'weak_password', 'message' => $passwordError]);
+	exit;
+}
 
 $pdo = get_db_connection();
 if (!$pdo) {
@@ -49,6 +54,14 @@ try {
 	xinng_ensure_page_builder_tables($pdo);
 	xinng_ensure_credit_tables($pdo);
 	xinng_ensure_api_token_table($pdo);
+	xinng_ensure_auth_security_tables($pdo);
+	if (xinng_auth_rate_limited($pdo, 'signup', $email, 5, 3600)) {
+		http_response_code(429);
+		header('Retry-After: 3600');
+		echo json_encode(['ok' => false, 'error' => 'rate_limited']);
+		exit;
+	}
+	xinng_record_auth_event($pdo, 'signup', 'requested', null, $email, ['channel' => 'api']);
 
 	if ($requestedSlug !== '') {
 		$slugCheck = xinng_validate_page_slug($pdo, $requestedSlug);
@@ -89,8 +102,9 @@ try {
 	$pdo->commit();
 
 	try {
+		xinng_ensure_personal_workspace($pdo, $userId, $name);
 		xinng_send_welcome_email($userId, $email, $name);
-		xinng_create_notification($pdo, $userId, 'account', 'Welcome to Xinng', 'Your account has been created and is ready to use.', 'dashboard.php');
+		xinng_record_auth_event($pdo, 'signup', 'succeeded', $userId, $email, ['channel' => 'api']);
 	} catch (Throwable $sideEffectError) {
 		error_log('API signup post-creation action failed: ' . $sideEffectError->getMessage());
 	}

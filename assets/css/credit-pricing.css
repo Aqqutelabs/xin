@@ -18,6 +18,7 @@
 .credit-package-cost span { color:var(--muted); font-size:12px; font-weight:700; }
 .credit-package-actions { display:grid; gap:8px; margin-top:auto; }
 .credit-package-button { width:100%; min-height:40px; padding:10px 12px; font-size:12px; }
+.credit-transfer-button { color:var(--brand-red, #e83b32); }
 .credit-checkout-message { min-height:0; margin-top:14px; color:#991b1b; font-size:13px; font-weight:800; }
 .credit-checkout-message:empty { display:none; }
 @media (max-width:900px) { .credit-package-grid { grid-template-columns:1fr; } .credit-package-card.is-featured { transform:none; } }

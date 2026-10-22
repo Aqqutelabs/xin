@@ -1,0 +1,63 @@
+.dashboard-home .dashboard-overview,
+.dashboard-home .dashboard-actions,
+.dashboard-home .dashboard-performance{margin-bottom:26px}
+.dashboard-home .setup-checklist{margin-bottom:26px;padding:22px;border:1px solid #e7dedb;border-radius:16px;background:#fff;box-shadow:0 6px 20px #4a101208}
+.dashboard-home .setup-count{padding:6px 9px;border-radius:999px;background:#fff1ec;color:#a6201d;font-size:10px;font-weight:800;white-space:nowrap}
+.dashboard-home .setup-progress{height:8px;overflow:hidden;margin-bottom:14px;border-radius:999px;background:#f0e6e3}
+.dashboard-home .setup-progress span{display:block;height:100%;border-radius:inherit;background:#ef3730}
+.dashboard-home .setup-task-list{margin:0;padding:0;list-style:none}
+.dashboard-home .setup-task-list li{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 4px;border-top:1px solid #f2ebe9}
+.dashboard-home .setup-task-list li:first-child{border-top:0}
+.dashboard-home .setup-task-status{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:#fff1ec;color:#c92a24;font-size:11px}
+.dashboard-home .setup-task-copy strong,.dashboard-home .setup-task-copy small{display:block}
+.dashboard-home .setup-task-copy strong{font-size:12px}
+.dashboard-home .setup-task-copy small{margin-top:2px;color:#756965;font-size:10px;line-height:1.4}
+.dashboard-home .setup-task-list a{color:#a6201d;font-size:10px;font-weight:800;text-decoration:none;white-space:nowrap}
+.dashboard-home .setup-task-done{color:#397456;font-size:10px;font-weight:800}
+.dashboard-home .setup-task-list li.is-complete .setup-task-status{background:#e9f5ee;color:#397456}
+.dashboard-home .setup-task-list li.is-complete .setup-task-copy strong{color:#756965;text-decoration:line-through}
+.dashboard-home .dashboard-section-heading{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:13px}
+.dashboard-home .dashboard-section-heading h2{margin:5px 0 0;font-size:22px;line-height:1.2;letter-spacing:-.04em}
+.dashboard-home .dashboard-section-heading>a{color:#a6201d;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap}
+.dashboard-home .channel-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.dashboard-home .channel-card{display:flex;flex-direction:column;align-items:flex-start;min-width:0;min-height:151px;padding:17px;border:1px solid #e7dedb;border-radius:14px;background:#fff;color:#201a19;text-decoration:none;box-shadow:0 6px 20px #4a101208}
+.dashboard-home .channel-card:hover,.dashboard-home .quick-action:hover{border-color:#e99e98;transform:translateY(-2px)}
+.dashboard-home .channel-card>span:not(.channel-icon){font-size:11px;color:#6f6562}
+.dashboard-home .channel-icon,.dashboard-home .quick-action-icon{display:grid;place-items:center;width:32px;height:32px;margin-bottom:13px;border-radius:9px;background:#fff1ec;color:#c92a24;font-size:13px}
+.dashboard-home .channel-card strong{margin-top:2px;font-size:27px;line-height:1.1;letter-spacing:-.045em}
+.dashboard-home .channel-card small{margin-top:5px;color:#8b7e78;font-size:9px}
+.dashboard-home .channel-card-wallet small{color:#a6201d;font-weight:800}
+.dashboard-home .quick-action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.dashboard-home .quick-action{display:flex;flex-direction:column;align-items:flex-start;min-height:138px;padding:17px;border:1px solid #e7dedb;border-radius:14px;background:#fff;color:#201a19;text-align:left;text-decoration:none;cursor:pointer;transition:transform .15s ease,border-color .15s ease}
+.dashboard-home .quick-action strong{font-size:12px}
+.dashboard-home .quick-action small{margin-top:5px;color:#6f6562;font-size:10px;line-height:1.5}
+.dashboard-home .quick-action.primary{background:#c92a24;border-color:#c92a24;color:#fff}
+.dashboard-home .quick-action.primary .quick-action-icon{background:#fff;color:#c92a24}
+.dashboard-home .quick-action.primary small{color:#ffe9e5}
+.dashboard-home .performance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.dashboard-home .performance-grid>div{padding:15px 18px;border:1px solid #e7dedb;border-radius:12px;background:#fff}
+.dashboard-home .performance-grid strong{display:block;font-size:21px;letter-spacing:-.04em}
+.dashboard-home .performance-grid span{font-size:10px;color:#6f6562}
+.overview-screen .main{min-width:0}
+.overview-screen .content{overflow-y:auto}
+.overview-screen .editor-column{max-width:1100px}
+.overview-screen .overview-header-link{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border:1px solid #e7dedb;border-radius:10px;color:#4a1012;font-size:12px;font-weight:800;text-decoration:none}
+.overview-screen .overview-wallet{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.8fr);gap:24px;align-items:center;margin-bottom:26px;padding:24px;border:1px solid #e7dedb;border-radius:16px;background:#fff;box-shadow:0 6px 20px #4a101208}
+.overview-screen .overview-wallet h2{margin:5px 0 18px;font-size:22px;letter-spacing:-.04em}
+.overview-screen .overview-plan-label{margin:0 0 3px;color:#8b7e78;font-size:11px}
+.overview-screen .overview-plan-name{display:inline-block;font-size:16px;color:#201a19}
+.overview-screen .overview-plan-status{display:inline-block;margin-left:8px;padding:4px 7px;border-radius:999px;background:#fff1ec;color:#a6201d;font-size:10px;font-weight:800}
+.overview-screen .overview-wallet-note{margin:8px 0 0;color:#6f6562;font-size:11px;line-height:1.5}
+.overview-screen .overview-credit-balance{padding:18px;border-radius:12px;background:#fff9f7}
+.overview-screen .overview-credit-balance>span{display:block;color:#6f6562;font-size:11px}
+.overview-screen .overview-credit-balance>strong{display:block;margin:4px 0 12px;color:#4a1012;font-size:30px;line-height:1;letter-spacing:-.04em}
+.overview-screen .overview-meter{height:8px;overflow:hidden;border-radius:999px;background:#eaded9}
+.overview-screen .overview-meter span{display:block;height:100%;border-radius:inherit;background:#c92a24}
+.overview-screen .overview-credit-balance small{display:block;margin-top:7px;color:#8b7e78;font-size:9px}
+.overview-screen .overview-credit-balance a{display:inline-block;margin-top:14px;color:#a6201d;font-size:11px;font-weight:800;text-decoration:none}
+.workspace-recent-activity{margin-bottom:26px;padding:18px;border:1px solid #e7dedb;border-radius:14px;background:#fff}.recent-activity p{margin:5px 0 0;color:#756965;font-size:10px;line-height:1.5}.recent-activity ul{margin:9px 0 0;padding:0;list-style:none}.recent-activity li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid #f2ebe9}.recent-activity small,.recent-activity a{display:block}.recent-activity small{color:#9a8984;font-size:8px;font-weight:800;text-transform:uppercase}.recent-activity a{margin-top:2px;color:#342724;font-size:11px;font-weight:700;text-decoration:none}.recent-activity time{color:#8b7e78;font-size:9px;white-space:nowrap}
+@media(max-width:1050px){.dashboard-home .channel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.dashboard-home .quick-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-home .performance-grid{grid-template-columns:1fr 1fr}.dashboard-home .dashboard-section-heading{align-items:flex-start}.dashboard-home .dashboard-section-heading>a{white-space:normal;text-align:right}.overview-screen .overview-wallet{grid-template-columns:1fr}}
+@media(max-width:620px){.dashboard-home .setup-task-list li{grid-template-columns:34px minmax(0,1fr)}.dashboard-home .setup-task-list li>a,.dashboard-home .setup-task-done{grid-column:2;justify-self:start}.dashboard-home .setup-count{white-space:normal;text-align:right}}
+@media(max-width:420px){.dashboard-home .channel-grid,.dashboard-home .quick-action-grid{grid-template-columns:1fr 1fr}.dashboard-home .channel-card,.dashboard-home .quick-action{padding:13px;min-height:140px}.dashboard-home .performance-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.dashboard-home .quick-action,.dashboard-home .channel-card{transition:none}.dashboard-home .channel-card:hover,.dashboard-home .quick-action:hover{transform:none}}

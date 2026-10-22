@@ -29,6 +29,7 @@ $initials = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $title), 0, 2))
   <title><?= e($title) ?></title>
   <meta name="description" content="<?= e($subtitle) ?>">
   <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/style.css">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body>
   <main class="page">

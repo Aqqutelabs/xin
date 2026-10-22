@@ -1,5 +1,11 @@
 RewriteEngine On
 
+# Uploaded payment receipts are private and must only be reviewed through authenticated server-side tools.
+RewriteRule ^uploads/bank-receipts/ - [F,L]
+
+RewriteRule ^wallet/?$ credits.php [QSA,L]
+RewriteRule ^wallet/plans/?$ wallet_plans.php [QSA,L]
+
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]

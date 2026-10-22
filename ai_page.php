@@ -27,31 +27,23 @@ $csrf = csrf_token();
   <title>AI Page Builder - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css">
-  <link rel="stylesheet" href="assets/css/ai-page.css">
+  <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
+  <link rel="stylesheet" href="assets/css/preview-pane.css?v=20261021a">
+  <link rel="stylesheet" href="assets/css/ai-page.css?v=20261021a">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body class="ai-workspace-page">
+<body class="ai-workspace-page workspace-shell-page">
   <div class="dashboard">
-    <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
-      <div class="account"><div class="account-main"><span class="avatar"><?= e(ai_initials($userName)) ?></span><span><?= e($selectedPage['slug'] ?? $userName) ?></span></div></div>
-      <nav>
-        <div class="nav-section">
-          <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
-          <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
-          <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
-          <a class="nav-item active" href="ai_page.php"><span class="nav-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>AI Page Builder</a>
-          <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
-          <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
-        </div>
-      </nav>
-      <div class="setup-card"><div class="progress-ring" style="--completion: <?= $pages ? '60' : '25' ?>%;"><?= $pages ? '60' : '25' ?>%</div><strong>Build faster with AI</strong><p>Start with a clear brief and refine the draft in the editor.</p><a class="primary-btn" href="credits.php"><span class="label-icon"><i class="fa-solid fa-coins"></i></span>Get credits</a></div>
-    </aside>
+    <?php
+      $sidebarActive = 'ai';
+      $sidebarUserName = $userName;
+      $sidebarDisplayName = $selectedPage['slug'] ?? $userName;
+      $sidebarBottom = ['progress' => $pages ? 60 : 25, 'title' => 'Build faster with AI', 'body' => 'Start with a clear brief and refine the draft in the editor.', 'action_label' => 'Get credits', 'action_href' => 'credits.php'];
+      include __DIR__ . '/includes/workspace-sidebar.php';
+    ?>
 
     <main class="main ai-main">
-      <header class="main-header">
-        <div class="header-title"><h1>AI Page Builder</h1><span>Turn a short brief into a page draft you can review and edit.</span></div>
-        <div class="header-actions"><a class="icon-btn" href="pages.php" aria-label="Back to pages"><i class="fa-solid fa-arrow-left"></i></a><a class="icon-btn" href="logout.php" aria-label="Log out"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
-      </header>
+      <?php $workspaceHeaderTitle = 'AI Page Builder'; $workspaceHeaderSubtitle = 'Turn a short brief into a page draft you can review and edit.'; include __DIR__ . '/includes/workspace-shell-header.php'; ?>
 
       <div class="ai-content">
           <section class="ai-hero"><div class="ai-kicker"><i class="fa-solid fa-sparkles"></i> Prompt workspace</div><h2>What should your page feel like?</h2><p>Describe your audience, offer, tone, and the actions you want visitors to take. The more specific the brief, the more useful the first draft.</p></section>
@@ -64,12 +56,23 @@ $csrf = csrf_token();
               <div class="ai-status" id="ai-page-status" role="status" aria-live="polite"></div>
               <div class="prompt-examples"><span>Try a starting point</span><button type="button" data-prompt="Create a clean personal page for a Lagos wedding photographer. Include a warm introduction, portfolio, booking, Instagram, and contact links.">Wedding photographer</button><button type="button" data-prompt="Create a credible company page for a B2B technology consultancy. Include capabilities, case studies, a meeting booking CTA, and contact routing.">B2B consultancy</button><button type="button" data-prompt="Create an energetic creator page for a fitness coach selling a 6-week program. Include a strong CTA, testimonials, booking, and newsletter signup.">Fitness creator</button></div>
             </section>
-            <aside class="draft-card" id="draft-card"><div class="draft-card-head"><div><span class="card-eyebrow">Output</span><h3 id="draft-title">Your draft will appear here</h3></div><span class="draft-status" id="draft-status" role="status">Waiting</span></div><div class="draft-preview" id="draft-preview"><i class="fa-solid fa-wand-magic-sparkles"></i><p>AI will suggest a title, description, style, and page sections based on your prompt.</p></div><button class="primary-btn open-builder-btn" id="open-builder" type="button" disabled><i class="fa-solid fa-pen"></i> Open in page builder</button></aside>
           </div>
       </div>
     </main>
+    <aside class="preview ai-preview-pane" data-preview-pane data-preview-default-open="true" data-preview-label="AI page preview" aria-label="AI page preview">
+      <header class="preview-header"><div><strong>Page preview</strong><small>Live draft output</small></div></header>
+      <div class="preview-body">
+        <div class="draft-card" id="draft-card">
+          <div class="draft-card-head"><div><span class="card-eyebrow">Output</span><h3 id="draft-title">Your draft will appear here</h3></div><span class="draft-status" id="draft-status" role="status">Waiting</span></div>
+          <div class="draft-preview" id="draft-preview"><i class="fa-solid fa-wand-magic-sparkles"></i><p>AI will suggest a title, description, style, and page sections based on your prompt.</p></div>
+          <button class="primary-btn open-builder-btn" id="open-builder" type="button" disabled><i class="fa-solid fa-pen"></i> Open in page builder</button>
+        </div>
+      </div>
+    </aside>
   </div>
   <script>window.aiPageConfig = <?= json_encode(['csrf' => $csrf, 'maxPromptLength' => AI_MAX_PROMPT_LENGTH, 'generationCost' => AI_PAGE_GENERATION_COST], JSON_UNESCAPED_SLASHES) ?>;</script>
   <script src="assets/js/ai-page.js"></script>
+  <script>document.getElementById('ai-page-select')?.addEventListener('change',()=>document.dispatchEvent(new CustomEvent('xinng:preview-open')));document.getElementById('generate-ai-page')?.addEventListener('click',()=>document.dispatchEvent(new CustomEvent('xinng:preview-open')));</script>
+  <script src="assets/js/preview-pane.js?v=20261021a"></script>
 </body>
 </html>

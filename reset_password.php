@@ -15,10 +15,11 @@ if ($token === '') {
         try {
             xinng_ensure_password_reset_table($pdo);
             $token_hash = hash('sha256', $token);
-            $stmt = $pdo->prepare('SELECT pr.id AS pr_id, pr.user_id, pr.expires_at, u.email FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE pr.token_hash = ? LIMIT 1');
+            xinng_ensure_auth_security_tables($pdo);
+            $stmt = $pdo->prepare('SELECT pr.id AS pr_id, pr.user_id, pr.expires_at, u.email, u.status FROM password_resets pr JOIN users u ON u.id = pr.user_id WHERE pr.token_hash = ? LIMIT 1');
             $stmt->execute([$token_hash]);
             $row = $stmt->fetch();
-            if (!$row) {
+            if (!$row || ($row['status'] ?? 'active') !== 'active') {
                 $errors[] = 'Invalid or expired token.';
             } else {
                 $expires = strtotime($row['expires_at']);
@@ -36,24 +37,35 @@ if ($token === '') {
                                 $errors[] = 'Both password fields are required.';
                             } elseif ($password !== $password2) {
                                 $errors[] = 'Passwords do not match.';
-                            } elseif (strlen($password) < 6) {
-                                $errors[] = 'Password must be at least 6 characters.';
+                            } elseif ($passwordError = xinng_password_error($password)) {
+                                $errors[] = $passwordError;
                             } else {
-                                $hash = password_hash($password, PASSWORD_DEFAULT);
                                 $pdo->beginTransaction();
+                                $lock = $pdo->prepare('SELECT id FROM password_resets WHERE id = ? AND token_hash = ? AND expires_at >= NOW() FOR UPDATE');
+                                $lock->execute([(int)$row['pr_id'], $token_hash]);
+                                if (!$lock->fetchColumn()) {
+                                    $pdo->rollBack();
+                                    $errors[] = 'This reset link has already been used or expired.';
+                                    $show_form = false;
+                                } else {
+                                $hash = password_hash($password, PASSWORD_DEFAULT);
                                 $upd = $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?');
                                 $upd->execute([$hash, (int)$row['user_id']]);
                                 $del = $pdo->prepare('DELETE FROM password_resets WHERE user_id = ?');
                                 $del->execute([(int)$row['user_id']]);
                                 $pdo->commit();
+                                try { xinng_record_auth_event($pdo, 'password_reset', 'succeeded', (int)$row['user_id'], (string)$row['email']); } catch (Throwable $auditError) { error_log('Password reset audit failed: ' . $auditError->getMessage()); }
+                                session_regenerate_id(true);
                                 $success = true;
                                 $show_form = false;
+                                }
                             }
                         }
                     }
                 }
             }
         } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             error_log($e->getMessage());
             $errors[] = 'Server error. Try again later.';
         }
@@ -66,10 +78,12 @@ if ($token === '') {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Set new password — <?= htmlspecialchars($APP_NAME) ?></title>
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/brand.css">
+  <link rel="stylesheet" href="assets/css/auth.css?v=<?= filemtime(__DIR__ . '/assets/css/auth.css') ?>">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body>
-  <main class="auth-wrap">
+<body class="auth-page">
+  <main class="auth-wrap auth-wrap--single">
     <section class="auth-card">
       <div class="auth-head">
         <a class="xinng-brand xinng-brand--auth" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
@@ -78,21 +92,22 @@ if ($token === '') {
       </div>
 
       <?php foreach ($errors as $err): ?>
-        <div class="error"><?= htmlspecialchars($err) ?></div>
+        <div class="error" role="alert"><?= htmlspecialchars($err) ?></div>
       <?php endforeach; ?>
 
       <?php if ($success): ?>
-        <div class="notice">Your password has been updated. You can now <a href="signin.php">sign in</a>.</div>
+        <div class="notice" role="status">Your password has been updated. You can now <a href="signin.php">sign in</a>.</div>
       <?php elseif ($show_form): ?>
         <form method="post" class="auth-form" novalidate>
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token()) ?>">
           <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
 
-          <label>New password</label>
-          <div class="pw-wrap"><input id="new-password" name="password" type="password" required></div>
+          <label for="new-password">New password</label>
+          <div class="pw-wrap"><input id="new-password" name="password" type="password" autocomplete="new-password" required aria-describedby="password-requirements"></div>
+          <small id="password-requirements" class="small">Use at least 8 characters, including a letter and a number.</small>
 
-          <label>Confirm password</label>
-          <div class="pw-wrap"><input id="new-password2" name="password2" type="password" required></div>
+          <label for="new-password2">Confirm password</label>
+          <div class="pw-wrap"><input id="new-password2" name="password2" type="password" autocomplete="new-password" required></div>
 
           <div class="form-foot">
             <button class="btn brand-gradient-btn" type="submit">Set password</button>

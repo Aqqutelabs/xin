@@ -1,36 +1,31 @@
-/* Shared Xinng wordmark. Crop the supplied SVG's blank canvas in CSS;
-   keep the original artwork and its proportions intact. */
+/* Shared transparent Xinng wordmark. */
 .xinng-brand {
-  position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   flex: 0 0 auto;
   width: 144px;
-  height: 40.13px;
-  overflow: hidden;
+  height: 46px;
   vertical-align: middle;
   text-decoration: none;
-  background: #fff;
-  border-radius: 3px;
+  background: transparent;
 }
 .xinng-brand > img.xinng-brand__image {
-  position: absolute;
   display: block;
-  width: 142.2951%;
-  height: 266.4706%;
-  max-width: none;
-  max-height: none;
-  left: -22.541%;
-  top: -76.4706%;
-  object-fit: fill;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: left center;
   margin: 0;
   border: 0;
 }
-.xinng-brand--small { width: 108px; height: 30.10px; }
-.xinng-brand--auth { width: 180px; height: 50.16px; margin-bottom: 16px; }
+.xinng-brand--small { width: 108px; height: 35px; }
+.xinng-brand--auth { width: 180px; height: 58px; margin-bottom: 16px; }
 .xinng-powered { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .xinng-brand:focus-visible { outline: 3px solid #b75356; outline-offset: 4px; }
 @media (max-width: 480px) {
-  .xinng-brand { width: 126px; height: 35.11px; }
-  .xinng-brand--small { width: 90px; height: 25.08px; }
-  .xinng-brand--auth { width: 162px; height: 45.15px; }
+  .xinng-brand { width: 126px; height: 41px; }
+  .xinng-brand--small { width: 90px; height: 29px; }
+  .xinng-brand--auth { width: 162px; height: 52px; }
 }

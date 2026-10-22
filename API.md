@@ -16,7 +16,7 @@ Accept: application/json
 {
   "name": "Alex Example",
   "email": "alex@example.com",
-  "password": "choose-a-password",
+  "password": "choose-a-password1",
   "slug": "alex"
 }
 ```
@@ -41,6 +41,8 @@ Accept: application/json
 
 Save `api_token` securely when the response is received; it is only returned at signup. The API signup endpoint does not create a browser login session. The HTML form at `/signup.php` is a separate flow: it uses form fields and redirects to the dashboard after signup.
 
+Passwords must contain at least 8 characters, including a letter and a number. Public signup is rate-limited; clients receiving `429 rate_limited` should honor the `Retry-After` response header.
+
 ### Signup errors
 
 | Status | Error | Meaning |
@@ -49,6 +51,8 @@ Save `api_token` securely when the response is received; it is only returned at 
 | `405` | `method_not_allowed` | Use `POST` |
 | `409` | `email_already_exists` | An account already uses that email |
 | `422` | `missing_fields`, `field_too_long`, `invalid_email`, or `invalid_slug` | Correct the submitted fields |
+| `422` | `weak_password` | Password does not meet the documented requirements |
+| `429` | `rate_limited` | Too many signup attempts; honor `Retry-After` |
 | `500` | `db` or `signup_failed` | Server or database error |
 
 Signup is not account-scoped and does not need `user_id`.

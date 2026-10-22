@@ -14,6 +14,7 @@ declare(strict_types=1);
   <link rel="stylesheet" href="tracker.css?v=<?= (int) filemtime(__DIR__ . '/tracker.css') ?>">
   <link rel="stylesheet" href="tracker-trains.css?v=<?= (int) filemtime(__DIR__ . '/tracker-trains.css') ?>">
   <link rel="stylesheet" href="tracker-subtasks.css?v=<?= (int) filemtime(__DIR__ . '/tracker-subtasks.css') ?>">
+  <?php require __DIR__ . '/../includes/google-analytics.php'; ?>
 </head>
 <body>
   <aside class="sidebar">
@@ -29,7 +30,7 @@ declare(strict_types=1);
     <div class="sidebar-note">
       <span class="eyebrow">North star</span>
       <strong>Useful tools on the surface. Shared intelligence underneath.</strong>
-      <small>14-train product portfolio</small>
+      <small>15-train product portfolio</small>
     </div>
   </aside>
 
@@ -51,19 +52,19 @@ declare(strict_types=1);
         <h2>One workspace for<br><em>every connection.</em></h2>
         <p>A complete delivery map for Xinng across platform, presence, audience, communications, automation, distribution, intelligence, Events, creator tools and commerce.</p>
         <div class="hero-meta">
-          <div><span>Scope</span><strong>14 delivery trains</strong></div>
+          <div><span>Scope</span><strong>15 delivery trains</strong></div>
           <div><span>Source</span><strong>XINNGPRDfull.md · v2.1</strong></div>
-          <div><span>Updated</span><strong id="lastUpdated">17 Oct 2026</strong></div>
+          <div><span>Updated</span><strong id="lastUpdated">19 Oct 2026</strong></div>
         </div>
       </div>
       <div class="readiness-card">
         <div class="ring" id="progressRing"><span><strong id="overallPercent">0%</strong><small>complete</small></span></div>
-        <div class="readiness-copy"><span>Delivery readiness</span><strong id="readinessLabel">Foundation</strong><small id="doneSummary">0 of 153 tasks done</small></div>
+        <div class="readiness-copy"><span>Delivery readiness</span><strong id="readinessLabel">Foundation</strong><small id="doneSummary">0 tasks done</small></div>
       </div>
     </section>
 
     <section class="metric-grid" aria-label="Project metrics">
-      <article><span>Total tasks</span><strong id="totalMetric">153</strong><small>Existing work plus Nano and Platform Finance</small></article>
+      <article><span>Total tasks</span><strong id="totalMetric">0</strong><small>Current and planned product work</small></article>
       <article><span>In progress</span><strong id="activeMetric">0</strong><small>Work currently moving</small></article>
       <article><span>Blocked</span><strong id="blockedMetric">0</strong><small>Needs an unblock decision</small></article>
       <article><span>Critical path</span><strong id="criticalMetric">0</strong><small>High-priority open items</small></article>
@@ -85,7 +86,7 @@ declare(strict_types=1);
         <select id="ownerFilter" aria-label="Filter by owner"><option value="all">All owners</option></select>
         <button class="filter-reset" id="resetFilters" type="button">Reset</button>
       </div>
-      <div class="result-row"><span id="resultCount">153 tasks · 765 subtasks</span><span class="save-state" id="saveState">Saved locally</span></div>
+      <div class="result-row"><span id="resultCount">Tasks loading</span><span class="save-state" id="saveState">Saved locally</span></div>
       <div id="taskView" class="task-view"></div>
     </section>
 

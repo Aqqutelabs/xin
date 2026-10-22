@@ -84,7 +84,7 @@ if ($pdo) {
 $displayTitle = $activePage['title'] ?? $user_name;
 $displaySlug = $activePage['slug'] ?? strtolower(preg_replace('/[^a-z0-9]+/i', '', $user_name ?: 'user'));
 $displayUrl = $activePage ? xinng_short_url($activePage['slug']) : xinng_short_url('your-slug');
-$completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($activePage['bio']) ? 10 : 0)) : 30;
+$previewQr = $qrCodes[0] ?? null;
 ?>
 <!doctype html>
 <html lang="en">
@@ -94,46 +94,29 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
   <title>QR Codes - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-workspace-polish">
+  <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
+  <link rel="stylesheet" href="assets/css/preview-pane.css?v=20261019f">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body class="qr-screen workspace-screen">
-  <div class="dashboard no-preview">
-    <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot" aria-label="xin.ng brand"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
-      <div class="account">
-        <div class="account-main">
-          <span class="avatar"><?= e(initials($user_name)) ?></span>
-          <span><?= e($displaySlug ?: $user_name) ?></span>
-          <span aria-hidden="true">v</span>
-        </div>
-        <a class="icon-btn" href="?action=logout" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
-      </div>
-      <nav>
-        <div class="nav-section">
-          <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
-          <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
-          <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
-          <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
-          <a class="nav-item active" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
-          <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
-          <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-wallet"></i></span>Credits</a>
-        </div>
-      </nav>
-      <div class="setup-card">
-        <div class="progress-ring" style="--completion: <?= (int)$completion ?>%;"><?= (int)$completion ?>%</div>
-        <strong>Your setup checklist</strong>
-        <p><?= $activePage ? '4 of 6 complete' : '1 of 6 complete' ?></p>
-        <a class="primary-btn" href="signup.php"><span class="label-icon"><i class="fa-solid fa-check"></i></span>Finish setup</a>
-      </div>
-    </aside>
+<body class="qr-screen workspace-screen workspace-shell-page">
+  <div class="dashboard">
+    <?php
+      $sidebarActive = 'qr';
+      $sidebarUserName = $user_name;
+      $sidebarDisplayName = $displaySlug ?: $user_name;
+      $sidebarBottom = [
+        'eyebrow' => 'QR TOOLKIT',
+        'title' => 'Create a code',
+        'body' => 'Turn any destination into a branded, trackable QR code.',
+        'action_label' => 'Create QR code',
+        'action_type' => 'button',
+        'action_id' => 'create-qr-code',
+      ];
+      include __DIR__ . '/includes/workspace-sidebar.php';
+    ?>
 
     <main class="main">
-      <header class="main-header">
-        <div class="header-title">
-          <h1>QR Codes</h1>
-          <span>Create trackable QR assets for your page, links, and campaigns.</span>
-        </div>
-        <div class="header-actions"><button class="primary-btn header-primary" type="button" id="create-qr-code"><i class="fa-solid fa-plus"></i>Create QR code</button></div>
-      </header>
+      <?php $workspaceHeaderTitle = 'QR Codes'; $workspaceHeaderSubtitle = 'Create trackable QR assets for your page, links, and campaigns.'; include __DIR__ . '/includes/workspace-shell-header.php'; ?>
 
       <div class="content">
         <?php include __DIR__ . '/includes/api-token-notice.php'; ?>
@@ -159,7 +142,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
                 $destination = $qr['destination_url'] ?: $displayUrl;
                 $qrImage = qr_card_image($qr);
               ?>
-                <article class="link-card qr-card" data-id="<?= e($qr['id']) ?>" data-title="<?= e($title) ?>" data-destination-url="<?= e($destination) ?>" data-back-half="<?= e($qr['back_half'] ?? '') ?>" data-qr-design="<?= e(json_encode([
+                <article class="link-card qr-card" data-id="<?= e($qr['id']) ?>" data-title="<?= e($title) ?>" data-destination-url="<?= e($destination) ?>" data-qr-image="<?= e($qrImage) ?>" data-qr-scans="<?= (int)($qr['scan_count'] ?? 0) ?>" data-back-half="<?= e($qr['back_half'] ?? '') ?>" data-qr-design="<?= e(json_encode([
                   'code_color' => $qr['code_color'] ?? ($qr['foreground_color'] ?? '#000000'),
                   'background_color' => $qr['background_color'] ?? '#FFFFFF',
                   'corner_color' => $qr['corner_color'] ?? null,
@@ -192,6 +175,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
                   </div>
                 </div>
                 <div class="link-actions">
+                  <button class="action-icon preview-qr-code" type="button" title="Preview QR code" aria-label="Preview <?= e($title) ?> QR code"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
                   <a class="action-icon" href="edit_qr_code.php?id=<?= e($qr['id']) ?>" title="Edit"><i class="fa-solid fa-pen"></i></a>
                   <button class="action-icon download-qr-code" type="button" title="Download QR code" aria-label="Download QR code"><i class="fa-solid fa-download"></i></button>
                   <button class="action-icon" type="button" data-x-share="<?= e($destination) ?>" data-x-share-text="<?= e('Scan my ' . $title . ' from Xinng.') ?>" title="Share on X" aria-label="Share on X"><i class="fa-brands fa-x-twitter"></i></button>
@@ -205,6 +189,24 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
       </div>
     </main>
 
+    <aside class="preview qr-list-preview" data-preview-pane data-preview-label="QR code preview" aria-label="QR code preview">
+      <header class="preview-header"><div><strong>QR preview</strong><small>Select a code to inspect it.</small></div></header>
+      <div class="preview-body">
+        <?php if ($previewQr): ?>
+          <div class="qr-list-preview-card" id="qr-list-preview-card">
+            <div class="qr-list-preview-image"><img id="qr-list-preview-image" src="<?= e(qr_card_image($previewQr)) ?>" alt="<?= e($previewQr['title'] ?: 'Selected') ?> QR code"></div>
+            <span class="qr-list-preview-label">SELECTED CODE</span>
+            <h2 id="qr-list-preview-title"><?= e($previewQr['title'] ?: ($previewQr['name'] ?? 'QR Code')) ?></h2>
+            <p id="qr-list-preview-destination"><?= e($previewQr['destination_url'] ?: $displayUrl) ?></p>
+            <span class="qr-list-preview-scans" id="qr-list-preview-scans"><?= number_format((int)($previewQr['scan_count'] ?? 0)) ?> scans</span>
+            <div class="qr-list-preview-actions"><a id="qr-list-preview-edit" href="edit_qr_code.php?id=<?= (int)$previewQr['id'] ?>">Edit code</a><button id="qr-list-preview-download" type="button">Download PNG</button></div>
+          </div>
+        <?php else: ?>
+          <div class="qr-list-preview-empty"><i class="fa-solid fa-qrcode" aria-hidden="true"></i><h2>No QR codes yet</h2><p>Create a code to see it here before sharing or downloading.</p></div>
+        <?php endif; ?>
+      </div>
+    </aside>
+
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
@@ -214,7 +216,38 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
     const button = document.getElementById('create-qr-code');
     const secondaryButton = document.querySelector('[data-create-qr]');
     const list = document.getElementById('qr-code-list');
-    if (!button || !list) return;
+    if (!list || (!button && !secondaryButton)) return;
+    const previewImage = document.getElementById('qr-list-preview-image');
+    const previewTitle = document.getElementById('qr-list-preview-title');
+    const previewDestination = document.getElementById('qr-list-preview-destination');
+    const previewScans = document.getElementById('qr-list-preview-scans');
+    const previewEdit = document.getElementById('qr-list-preview-edit');
+    let selectedCard = list.querySelector('.qr-card[data-id]');
+    if (selectedCard) selectedCard.classList.add('is-previewed');
+
+    function selectQrCard(card, reveal = false) {
+      if (!card?.dataset.id || !previewImage) return;
+      if (card === selectedCard) {
+        if (reveal) document.dispatchEvent(new CustomEvent('xinng:preview-open'));
+        return;
+      }
+      selectedCard?.classList.remove('is-previewed');
+      selectedCard = card;
+      card.classList.add('is-previewed');
+      previewImage.src = card.dataset.qrImage || '';
+      previewImage.alt = `${card.dataset.title || 'Selected'} QR code`;
+      previewTitle.textContent = card.dataset.title || 'QR Code';
+      previewDestination.textContent = card.dataset.destinationUrl || '';
+      previewScans.textContent = `${Number(card.dataset.qrScans || 0).toLocaleString()} scans`;
+      previewEdit.href = `edit_qr_code.php?id=${encodeURIComponent(card.dataset.id)}`;
+      if (reveal) document.dispatchEvent(new CustomEvent('xinng:preview-open'));
+    }
+    list.addEventListener('mouseover', event => selectQrCard(event.target.closest('.qr-card[data-id]')));
+    list.addEventListener('focusin', event => selectQrCard(event.target.closest('.qr-card[data-id]')));
+    list.addEventListener('click', event => {
+      if (event.target.closest('.preview-qr-code')) selectQrCard(event.target.closest('.qr-card[data-id]'), true);
+    });
+    document.getElementById('qr-list-preview-download')?.addEventListener('click', () => selectedCard?.querySelector('.download-qr-code')?.click());
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, function(char) {
@@ -306,7 +339,7 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
       card.querySelector('input')?.focus();
     }
-    button.addEventListener('click', openQrForm);
+    button?.addEventListener('click', openQrForm);
     secondaryButton?.addEventListener('click', openQrForm);
 
     list.addEventListener('click', async (event) => {
@@ -319,7 +352,16 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
         const body = new URLSearchParams({ _method: 'DELETE', id: card.dataset.id, csrf_token: csrf });
         const response = await fetch('api/qr-codes.php', { method: 'POST', body });
         const data = await response.json();
-        if (data.ok) card.remove();
+        if (data.ok) {
+          const wasSelected = card === selectedCard;
+          card.remove();
+          if (wasSelected) {
+            selectedCard = null;
+            const nextCard = list.querySelector('.qr-card[data-id]');
+            if (nextCard) selectQrCard(nextCard);
+            else location.reload();
+          }
+        }
         else alert(data.error || 'Unable to archive QR code.');
       }
     });
@@ -342,5 +384,6 @@ $completion = $activePage ? min(100, 45 + (count($qrCodes) * 10) + (!empty($acti
   })();
   </script>
   <script src="assets/js/x-share.js"></script>
+  <script src="assets/js/preview-pane.js?v=20261019b"></script>
 </body>
 </html>

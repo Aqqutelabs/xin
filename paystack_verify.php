@@ -69,7 +69,7 @@ if ($amountPaid !== $expectedAmount) {
 }
 
 if ($txn['status'] === 'completed') {
-    header('Location: credits.php?success=1');
+    header('Location: credits.php?success=1&credits=' . (int)$package['credits']);
     exit;
 }
 
@@ -93,7 +93,7 @@ try {
     $stmt->execute(['completed', $amountPaid / 100, 'NGN', 'paystack', 'Credit purchase', (int)$txn['id']]);
 
     $pdo->commit();
-    header('Location: credits.php?success=1');
+    header('Location: credits.php?success=1&credits=' . (int)$package['credits']);
     exit;
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {

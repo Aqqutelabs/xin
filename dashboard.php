@@ -1,793 +1,181 @@
 <?php
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/services/x/XAccountStore.php';
-use Xinng\X\XAccountStore;
 session_start();
 
-if (isset($_GET['action']) && $_GET['action'] === 'logout') {
-    session_unset();
-    session_destroy();
+$userId = filter_var($_SESSION['user_id'] ?? null, FILTER_VALIDATE_INT);
+if (!$userId || $userId <= 0) {
     header('Location: signin.php');
     exit;
 }
-
-$user_id = filter_var($_SESSION['user_id'] ?? null, FILTER_VALIDATE_INT);
-if ($user_id === false || $user_id <= 0) {
-  unset($_SESSION['user_id']);
-    header('Location: signin.php');
-    exit;
-}
-
-$user_name = $_SESSION['user_name'] ?? 'User';
 
 function e($value): string {
-    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function public_base_url(): string {
-    return xinng_public_base_url();
-}
-
-function initials(string $name): string {
-    $clean = preg_replace('/[^A-Za-z0-9 ]/', '', $name);
-    $parts = array_values(array_filter(explode(' ', trim($clean))));
-    if (count($parts) >= 2) {
-        return strtoupper(substr($parts[0], 0, 1) . substr($parts[1], 0, 1));
-    }
-
-    return strtoupper(substr($clean ?: 'X', 0, 2));
-}
-
-function link_icon(string $type, string $title): string {
-    $label = strtolower($type ?: $title);
-    if (str_contains($label, 'whatsapp')) return 'WA';
-    if (str_contains($label, 'instagram')) return 'IG';
-    if ($label === 'x' || str_contains($label, 'twitter')) return 'X';
-    if (str_contains($label, 'email')) return '@';
-    if (str_contains($label, 'phone')) return 'TEL';
-    if (str_contains($label, 'payment')) return 'PAY';
-    return 'LINK';
-}
-
-$pages = [];
-$activePage = null;
-$shortLinks = [];
-$dbError = false;
+$userName = (string)($_SESSION['user_name'] ?? 'User');
 $pdo = get_db_connection();
-$base = public_base_url();
+$dbError = $pdo === null;
+$channelCounts = ['links' => 0, 'pages' => 0, 'qr' => 0];
+$engagement = ['views' => 0, 'clicks' => 0, 'scans' => 0];
 $creditBalance = 0;
-$userEmail = '';
-$packages = xinng_credit_packages();
-$notifications = [];
-$unreadNotificationCount = 0;
-$xAccount = null;
-$xConfigured = TWITTERAPI_IO_API_KEY !== '' && X_TOKEN_ENCRYPTION_KEY !== '';
+$creditsUsedTotal = 0;
+$subscriptionName = null;
+$subscriptionStatus = null;
+$recentActivity = [];
+$setupPage = null;
+$socialCount = 0;
 
 if ($pdo) {
     xinng_ensure_short_link_tables($pdo);
+    xinng_ensure_qr_code_tables($pdo);
     xinng_ensure_credit_tables($pdo);
-    xinng_ensure_communication_tables($pdo);
-    xinng_ensure_x_account_tables($pdo);
-    $xAccount = (new XAccountStore($pdo, X_TOKEN_ENCRYPTION_KEY))->find($user_id);
 
-    $stmt = $pdo->prepare('SELECT id, slug, title, bio, profile_image_url, is_published FROM pages WHERE user_id = ? ORDER BY id ASC');
-    $stmt->execute([$user_id]);
-    $pages = $stmt->fetchAll();
-
-    foreach ($pages as &$page) {
-        $pid = (int) $page['id'];
-
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM page_views WHERE page_id = ?');
-        $stmt->execute([$pid]);
-        $page['page_views'] = (int) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM qr_scans WHERE page_id = ?');
-        $stmt->execute([$pid]);
-        $page['qr_scans'] = (int) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM link_clicks WHERE page_id = ?');
-        $stmt->execute([$pid]);
-        $page['link_clicks'] = (int) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare('SELECT id, title, url, description, link_type, position, is_active, click_count FROM links WHERE page_id = ? ORDER BY position ASC, id ASC LIMIT 50');
-        $stmt->execute([$pid]);
-        $page['links'] = $stmt->fetchAll();
-
-        $stmt = $pdo->prepare('SELECT id, qr_image_url, destination_url, scan_count FROM qr_codes WHERE page_id = ? ORDER BY id ASC LIMIT 1');
-        $stmt->execute([$pid]);
-        $page['qr'] = $stmt->fetch() ?: null;
+    $countQueries = [
+        'links' => 'SELECT COUNT(*) FROM short_links WHERE user_id = ? AND deleted_at IS NULL',
+        'pages' => 'SELECT COUNT(*) FROM pages WHERE user_id = ? AND deleted_at IS NULL',
+        'qr' => 'SELECT COUNT(*) FROM qr_codes WHERE user_id = ? AND deleted_at IS NULL',
+    ];
+    foreach ($countQueries as $key => $sql) {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$userId]);
+        $channelCounts[$key] = (int)$stmt->fetchColumn();
     }
-    unset($page);
 
-    $activePage = $pages[0] ?? null;
+    $stmt = $pdo->prepare('SELECT id, title, bio, theme FROM pages WHERE user_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC LIMIT 1');
+    $stmt->execute([$userId]);
+    $setupPage = $stmt->fetch() ?: null;
+    if ($setupPage) {
+        try {
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM page_socials WHERE page_id = ?');
+            $stmt->execute([(int)$setupPage['id']]);
+            $socialCount = (int)$stmt->fetchColumn();
+        } catch (PDOException $exception) {
+            try {
+                $stmt = $pdo->prepare('SELECT COUNT(*) FROM social_links WHERE page_id = ?');
+                $stmt->execute([(int)$setupPage['id']]);
+                $socialCount = (int)$stmt->fetchColumn();
+            } catch (PDOException $ignored) {
+                $socialCount = 0;
+            }
+        }
+    }
 
-    $stmt = $pdo->prepare('SELECT id, title, destination_url, back_half, status, click_count, created_at, updated_at FROM short_links WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC');
-    $stmt->execute([$user_id]);
-    $shortLinks = $stmt->fetchAll();
+    $metricQueries = [
+        'views' => 'SELECT COUNT(*) FROM page_views pv JOIN pages p ON p.id = pv.page_id WHERE p.user_id = ? AND p.deleted_at IS NULL',
+        'clicks' => 'SELECT (SELECT COUNT(*) FROM link_clicks lc JOIN pages p ON p.id = lc.page_id WHERE p.user_id = ? AND p.deleted_at IS NULL) + (SELECT COALESCE(SUM(click_count), 0) FROM short_links WHERE user_id = ? AND deleted_at IS NULL)',
+        'scans' => 'SELECT COUNT(*) FROM qr_code_scans qs JOIN qr_codes q ON q.id = qs.qr_code_id WHERE q.user_id = ? AND q.deleted_at IS NULL',
+    ];
+    foreach ($metricQueries as $key => $sql) {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($key === 'clicks' ? [$userId, $userId] : [$userId]);
+        $engagement[$key] = (int)$stmt->fetchColumn();
+    }
 
-    $stmt = $pdo->prepare('SELECT credit_balance, email FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
-    $stmt->execute([$user_id]);
+    $stmt = $pdo->prepare('SELECT credit_balance, credits_used_total FROM users WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $stmt->execute([$userId]);
     $creditRow = $stmt->fetch();
-    $creditBalance = (int)($creditRow['credit_balance'] ?? 0);
-    $userEmail = (string)($creditRow['email'] ?? '');
+    $creditBalance = max(0, (int)($creditRow['credit_balance'] ?? 0));
+    $creditsUsedTotal = max(0, (int)($creditRow['credits_used_total'] ?? 0));
 
-    $notifications = xinng_get_notifications($pdo, $user_id, 10);
-    $unreadNotificationCount = xinng_unread_notification_count($pdo, $user_id);
-} else {
-    $dbError = true;
+    // Subscriptions are part of the planned finance schema and may not exist in a live installation yet.
+    try {
+        $stmt = $pdo->prepare("SELECT p.name, s.status FROM subscriptions s JOIN plans p ON p.id = s.plan_id WHERE s.user_id = ? AND s.status IN ('active', 'trialing') AND (s.ends_at IS NULL OR s.ends_at > NOW()) ORDER BY s.starts_at DESC, s.id DESC LIMIT 1");
+        $stmt->execute([$userId]);
+        $subscription = $stmt->fetch();
+        if ($subscription) {
+            $subscriptionName = (string)$subscription['name'];
+            $subscriptionStatus = (string)$subscription['status'];
+        }
+    } catch (PDOException $exception) {
+        // Until the subscription train ships, the wallet still has a valid standalone balance.
+    }
+    $recentActivity = xinng_workspace_recent_activity($pdo, (int)$userId);
 }
 
-$displayTitle = $activePage['title'] ?? $user_name;
-$displayBio = $activePage['bio'] ?? 'Create a smart QR-powered link page you can update anytime.';
-$displaySlug = $activePage['slug'] ?? strtolower(preg_replace('/[^a-z0-9]+/i', '', $user_name ?: 'user'));
-$displayUrl = $activePage ? $base . '/u/' . $activePage['slug'] : $base . '/u/your-slug';
-$mainPageUrl = $activePage ? xinng_short_url($activePage['slug']) : xinng_short_url('your-slug');
-$qrUrl = $activePage ? $base . '/qr/' . $activePage['slug'] : $base . '/qr/your-slug';
-$links = $activePage['links'] ?? [];
-$totalViews = $activePage['page_views'] ?? 0;
-$totalQr = $activePage['qr_scans'] ?? 0;
-$totalShortClicks = array_sum(array_map(static fn($link) => (int)($link['click_count'] ?? 0), $shortLinks));
-$totalClicks = ($activePage['link_clicks'] ?? 0) + $totalShortClicks;
-$completion = $activePage ? min(100, 45 + (count($shortLinks) * 10) + (!empty($activePage['bio']) ? 10 : 0) + (!empty($activePage['qr']) ? 15 : 0)) : 30;
+$pageBuilderHref = $setupPage ? 'page_builder.php?id=' . (int)$setupPage['id'] : 'pages.php';
+$setupTasks = [
+    ['label' => 'Create your first page', 'detail' => 'Give visitors a home for your links and content.', 'href' => 'pages.php', 'complete' => $channelCounts['pages'] > 0],
+    ['label' => 'Write your page bio', 'detail' => 'Tell visitors who you are and what you offer.', 'href' => $pageBuilderHref, 'complete' => trim((string)($setupPage['bio'] ?? '')) !== ''],
+    ['label' => 'Choose a page style', 'detail' => 'Personalise the look of your public page.', 'href' => $pageBuilderHref, 'complete' => $setupPage && !in_array((string)($setupPage['theme'] ?? ''), ['', 'default'], true)],
+    ['label' => 'Add a social link', 'detail' => 'Connect at least one social profile.', 'href' => $pageBuilderHref, 'complete' => $socialCount > 0],
+    ['label' => 'Create a short link', 'detail' => 'Make a memorable, trackable destination.', 'href' => 'short_links.php?create=1', 'complete' => $channelCounts['links'] > 0],
+    ['label' => 'Create a QR code', 'detail' => 'Make one of your destinations scannable.', 'href' => 'qr_codes.php', 'complete' => $channelCounts['qr'] > 0],
+];
+$setupComplete = count(array_filter($setupTasks, static fn(array $task): bool => $task['complete']));
+$setupTotal = count($setupTasks);
+$setupProgress = $setupTotal ? (int)round(($setupComplete / $setupTotal) * 100) : 0;
+$incompleteSetupTasks = array_values(array_filter($setupTasks, static fn(array $task): bool => !$task['complete']));
+$nextSetupTask = $incompleteSetupTasks[0] ?? null;
+
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard - <?= e($APP_NAME ?? 'xin.ng') ?></title>
+  <title>Den — <?= e($APP_NAME ?? 'Xinng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css">
-  <link rel="stylesheet" href="assets/css/credit-pricing.css">
+  <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/dashboard-home.css?v=<?= filemtime(__DIR__ . '/assets/css/dashboard-home.css') ?>">
+  <link rel="stylesheet" href="assets/css/dashboard-overview.css?v=<?= filemtime(__DIR__ . '/assets/css/dashboard-overview.css') ?>">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body class="dashboard-home">
-  <a class="dashboard-skip" href="#workspace">Skip to workspace</a>
-
-  <div class="dashboard">
-    <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot" aria-label="xin.ng brand">
-        <a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
-      </div>
-
-      <div class="account">
-        <div class="account-main">
-          <span class="avatar"><?= e(initials($user_name)) ?></span>
-          <span><?= e($displaySlug ?: $user_name) ?></span>
-        </div>
-      </div>
-
-      <nav>
-        <div class="nav-section">
-          <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
-          <a class="nav-item active" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
-          <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
-          <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
-          <a class="nav-item" href="ai_page.php"><span class="nav-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>AI Page Builder</a>
-          <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
-          <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-coins"></i></span>Credits</a>
-          <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
-          <a class="nav-item sidebar-logout" href="logout.php"><span class="nav-icon"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i></span>Log out</a>
-        </div>
-
-      </nav>
-
-      <div class="setup-card">
-        <img src="assets/images/drag-xinng/stare.png" alt="" width="90" height="90">
-        <strong>A home for your different sides.</strong>
-        <p>Bring your work, ideas and important links together.</p>
-        <a class="primary-btn" href="pages.php">Manage your pages <span aria-hidden="true">&rarr;</span></a>
-      </div>
-    </aside>
-
+<body class="dashboard-home overview-screen workspace-screen workspace-shell-page">
+  <a class="dashboard-skip" href="#workspace">Skip to Den</a>
+  <div class="dashboard no-preview">
+    <?php
+      $sidebarActive = 'overview';
+      $sidebarUserName = $userName;
+      $sidebarBottom = ['progress' => $setupProgress, 'title' => 'Your setup checklist', 'body' => $setupComplete . ' of ' . $setupTotal . ' complete', 'action_label' => $nextSetupTask ? 'Finish setup' : 'Setup complete', 'action_href' => $nextSetupTask['href'] ?? '#setup-checklist'];
+      include __DIR__ . '/includes/workspace-sidebar.php';
+    ?>
     <main class="main" id="workspace" tabindex="-1">
-      <header class="main-header">
-        <div class="header-title">
-          <h1>Your workspace</h1>
-          <span>Your pages, links and connections, in one place.</span>
-        </div>
-        <div class="header-actions">
-          <div class="notification-wrapper">
-            <button class="icon-btn notification-toggle" type="button" aria-label="Notifications">
-              <i class="fa-solid fa-bell"></i>
-              <?php if ($unreadNotificationCount > 0): ?>
-                <span class="notification-badge"><?= (int)$unreadNotificationCount ?></span>
-              <?php endif; ?>
-            </button>
-            <div class="notification-panel" id="notification-panel" hidden>
-              <div class="notification-header">
-                <strong>Notifications</strong>
-                <button type="button" class="notification-mark-all" id="mark-all-read">Mark all read</button>
-              </div>
-              <?php if (empty($notifications)): ?>
-                <div class="notification-empty">No new notifications.</div>
-              <?php else: ?>
-                <ul class="notification-list">
-                  <?php foreach ($notifications as $notification): ?>
-                    <li class="notification-item <?= !empty($notification['is_read']) ? 'read' : 'unread' ?>" data-id="<?= (int)$notification['id'] ?>">
-                      <div class="notification-meta"><?= htmlspecialchars($notification['type']) ?></div>
-                      <div class="notification-title"><?= htmlspecialchars($notification['title']) ?></div>
-                      <div class="notification-message"><?= htmlspecialchars($notification['message']) ?></div>
-                      <?php if (!empty($notification['action_url'])): ?>
-                        <a href="<?= htmlspecialchars($notification['action_url']) ?>">Open</a>
-                      <?php endif; ?>
-                    </li>
-                  <?php endforeach; ?>
-                </ul>
-              <?php endif; ?>
-            </div>
-          </div>
-          <a class="icon-btn" href="#" aria-label="Settings"><i class="fa-solid fa-gear"></i></a>
-          <a class="icon-btn" href="?action=logout" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
-        </div>
-      </header>
-
-      <div class="content">
+      <?php $workspaceHeaderTitle = 'Den'; $workspaceHeaderSubtitle = 'Your Xinng activity at a glance.'; include __DIR__ . '/includes/workspace-shell-header.php'; ?>
+      <div class="content"><div class="editor-column">
         <?php include __DIR__ . '/includes/api-token-notice.php'; ?>
-        <div class="editor-column">
-          <?php if ($dbError): ?>
-            <div class="notice">Database connection is not available. The dashboard design is loaded, but live page data cannot be shown.</div>
-          <?php endif; ?>
+        <?php if ($dbError): ?><div class="notice">Workspace data is temporarily unavailable.</div><?php endif; ?>
+        <section class="workspace-welcome" aria-labelledby="welcome-heading"><div><p class="welcome-eyebrow">YOUR XINNG WORKSPACE</p><h2 id="welcome-heading">Welcome back, <?= e($userName) ?>.</h2><p>Manage your links, pages and QR codes from one place.</p></div><a href="insights.php">View insights <span aria-hidden="true">&nearr;</span></a></section>
 
-          <section class="workspace-welcome" aria-labelledby="welcome-heading"><div><p class="welcome-eyebrow">MAKE YOURSELF AT HOME</p><h2 id="welcome-heading">Welcome back, <?= e($user_name) ?>.</h2><p>Make room for your next idea.</p></div><a href="pages.php">Your pages <span aria-hidden="true">&nearr;</span></a></section>
-          <div class="stats-row" aria-label="Workspace analytics summary">
-            <div class="stat-card"><strong><?= number_format((int) $totalViews) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-regular fa-eye"></i></span>Page views</span></div>
-            <div class="stat-card"><strong><?= number_format((int) $totalQr) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-qrcode"></i></span>QR scans</span></div>
-            <div class="stat-card"><strong><?= number_format((int) $totalClicks) ?></strong><span class="stat-label"><span class="label-icon"><i class="fa-solid fa-arrow-pointer"></i></span>Link clicks</span></div>
-          </div>
+        <section class="dashboard-overview" aria-labelledby="channels-heading"><div class="dashboard-section-heading"><div><span class="eyebrow">YOUR CHANNELS</span><h2 id="channels-heading">Ready to share</h2></div></div><div class="channel-grid">
+          <a class="channel-card" href="short_links.php"><span class="channel-icon"><i class="fa-solid fa-link" aria-hidden="true"></i></span><span>Short links</span><strong><?= number_format($channelCounts['links']) ?></strong><small>Created destinations</small></a>
+          <a class="channel-card" href="pages.php"><span class="channel-icon"><i class="fa-regular fa-file-lines" aria-hidden="true"></i></span><span>Pages</span><strong><?= number_format($channelCounts['pages']) ?></strong><small>Personal and event pages</small></a>
+          <a class="channel-card" href="qr_codes.php"><span class="channel-icon"><i class="fa-solid fa-qrcode" aria-hidden="true"></i></span><span>QR codes</span><strong><?= number_format($channelCounts['qr']) ?></strong><small>Codes you can manage</small></a>
+          <a class="channel-card channel-card-wallet" href="credits.php"><span class="channel-icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span><span>Credits</span><strong><?= number_format($creditBalance) ?></strong><small><?= e($subscriptionName ?? 'No active subscription') ?></small></a>
+        </div></section>
 
-          <div class="credit-summary" aria-label="Credit balance">
-            <div class="credit-card">
-              <div class="credit-card-top">
-                <span class="credit-label">Credit balance</span>
-                <span class="credit-status">Available credits</span>
-              </div>
-              <strong><?= number_format($creditBalance) ?></strong>
-              <p>Save credits for short links, pages, QR codes, and campaign actions.</p>
-              <a class="primary-btn" href="credits.php">Buy more credits</a>
-            </div>
-          </div>
+        <section class="dashboard-actions" aria-labelledby="quick-actions-heading"><div class="dashboard-section-heading"><div><span class="eyebrow">GET THINGS DONE</span><h2 id="quick-actions-heading">Quick actions</h2></div></div><div class="quick-action-grid">
+          <a class="quick-action primary" href="short_links.php?create=1"><span class="quick-action-icon"><i class="fa-solid fa-link" aria-hidden="true"></i></span><strong>Create short link</strong><small>Give a destination a memorable address.</small></a>
+          <a class="quick-action" href="pages.php"><span class="quick-action-icon"><i class="fa-regular fa-file-lines" aria-hidden="true"></i></span><strong>Create or edit a page</strong><small>Update what visitors see on your page.</small></a>
+          <a class="quick-action" href="qr_codes.php"><span class="quick-action-icon"><i class="fa-solid fa-qrcode" aria-hidden="true"></i></span><strong>Create QR code</strong><small>Make a scannable link.</small></a>
+          <a class="quick-action" href="insights.php"><span class="quick-action-icon"><i class="fa-solid fa-chart-line" aria-hidden="true"></i></span><strong>Check insights</strong><small>Review views, clicks and scans.</small></a>
+          <a class="quick-action" href="credits.php"><span class="quick-action-icon"><i class="fa-solid fa-wallet" aria-hidden="true"></i></span><strong>Open wallet</strong><small>Review credits and purchases.</small></a>
+          <a class="quick-action" href="wallet/plans"><span class="quick-action-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span><strong>Choose a plan</strong><small>Compare subscriptions for your workspace.</small></a>
+          <a class="quick-action" href="workspaces.php"><span class="quick-action-icon"><i class="fa-solid fa-users" aria-hidden="true"></i></span><strong>Manage workspace</strong><small>Switch organizations and manage members.</small></a>
+        </div></section>
 
-          <div class="credit-summary" id="x-account-connection" aria-label="X account connection">
-            <div class="credit-card">
-              <div class="credit-card-top">
-                <span class="credit-label">X account</span>
-                <span class="credit-status"><?= $xAccount ? 'Connected' : 'Not connected' ?></span>
-              </div>
-              <?php if ($xAccount): ?>
-                <strong>@<?= e($xAccount['username']) ?></strong>
-                <p><?= e($xAccount['display_name'] ?: 'Your X account is ready for publishing.') ?></p>
-                <a class="ghost-btn" href="pages.php"><span class="label-icon"><i class="fa-regular fa-file-lines"></i></span>Manage pages</a>
-                <label for="x-post-text">Post to X</label>
-                <textarea id="x-post-text" maxlength="280" rows="4" placeholder="Share an update from Xinng..."></textarea>
-                <div class="credit-card-top"><span class="credit-status" id="x-post-count">0 / 280</span><span class="credit-status" id="x-post-status" role="status"></span></div>
-                <button class="primary-btn" type="button" id="x-publish" data-csrf="<?= e(csrf_token()) ?>">Preview and publish</button>
-                <button class="ghost-btn" type="button" id="x-disconnect" data-csrf="<?= e(csrf_token()) ?>">Disconnect X</button>
-              <?php else: ?>
-                <strong>Connect X</strong>
-                <p><?= $xConfigured ? 'Connect your account to publish Xinng pages and creator results.' : 'X account connections are not available right now. You can continue using the rest of your workspace.' ?></p>
-                <a class="ghost-btn" href="pages.php"><span class="label-icon"><i class="fa-regular fa-file-lines"></i></span>View pages</a>
-                <?php if ($xConfigured): ?><a class="primary-btn" href="api/x/connect.php?user_id=<?= (int)$user_id ?>"><span class="label-icon"><i class="fa-brands fa-x-twitter"></i></span>Connect X account</a><?php else: ?><span class="dashboard-action-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Available soon</span><?php endif; ?>
-              <?php endif; ?>
-            </div>
-          </div>
+        <section class="dashboard-performance" aria-labelledby="performance-heading"><div class="dashboard-section-heading"><div><span class="eyebrow">WHAT PEOPLE DID</span><h2 id="performance-heading">Performance to date</h2></div><a href="insights.php">More insights <span aria-hidden="true">&nearr;</span></a></div><div class="performance-grid"><div><strong><?= number_format($engagement['views']) ?></strong><span>Page views</span></div><div><strong><?= number_format($engagement['clicks']) ?></strong><span>Link clicks</span></div><div><strong><?= number_format($engagement['scans']) ?></strong><span>QR scans</span></div></div></section>
 
-          <?php include __DIR__ . '/credit-pricing-component.php'; ?>
-
-          <div class="model-note" id="model-note">
-            <button class="model-note-close" aria-label="Dismiss notice">×</button>
-            <strong>Shorter links. Easier sharing.</strong> Create a memorable address for any destination, then share it on your page or through a QR code.
-          </div>
-
-          <button class="primary-btn add-btn" type="button" id="add-short-link"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Add short link</button>
-
-          <section class="main-page-card" id="main-page-card" data-page-id="<?= e($activePage['id'] ?? '') ?>" data-base-url="<?= e(xinng_public_base_url()) ?>" data-public-prefix="<?= e(xinng_public_base_url() . '/') ?>">
-            <div class="main-page-copy">
-              <span class="eyebrow">Main Page URL</span>
-              <h2><?= e($displayTitle) ?></h2>
-              <p><?= e($displayBio) ?></p>
-              <div class="main-page-url-row">
-                <span class="main-page-domain"><?= e(str_replace(['http://', 'https://'], '', xinng_public_base_url())) ?>/</span>
-                <strong id="main-page-slug-text"><?= e($activePage['slug'] ?? 'your-slug') ?></strong>
-                <form id="main-page-slug-form" class="main-page-slug-form" hidden>
-                  <span><?= e(str_replace(['http://', 'https://'], '', xinng_public_base_url())) ?>/</span>
-                  <input id="main-page-slug-input" name="slug" type="text" value="<?= e($activePage['slug'] ?? '') ?>" autocomplete="off">
-                  <button class="small-btn primary" type="submit">Save</button>
-                  <button class="small-btn" type="button" id="cancel-main-page-slug">Cancel</button>
-                </form>
-              </div>
-              <div class="main-page-status" id="main-page-status" role="status"></div>
-            </div>
-            <div class="main-page-actions">
-              <button class="ghost-btn" id="edit-main-page-slug" type="button"><span class="label-icon"><i class="fa-solid fa-pen"></i></span>Edit URL</button>
-              <?php if ($activePage): ?><a class="ghost-btn" href="page_builder.php?id=<?= e($activePage['id']) ?>"><span class="label-icon"><i class="fa-regular fa-file-lines"></i></span>Edit page</a><?php endif; ?>
-              <button class="icon-btn copy-main-page-url" type="button" data-copy="<?= e($mainPageUrl) ?>" title="Copy URL" aria-label="Copy URL"><i class="fa-solid fa-copy"></i></button>
-              <a class="icon-btn" id="main-page-open-link" href="<?= e($mainPageUrl) ?>" target="_blank" rel="noopener" title="Open page" aria-label="Open page"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-            </div>
-          </section>
-
-         
-
-          <div class="secondary-row">
-            <a class="ghost-btn" href="#"><span class="label-icon"><i class="fa-solid fa-layer-group"></i></span>Add collection</a>
-            <a class="archive-link" href="#"><span class="label-icon"><i class="fa-solid fa-box-archive"></i></span>View archive <span aria-hidden="true">></span></a>
-          </div>
-
-          <div id="short-link-list">
-          <?php if (empty($shortLinks)): ?>
-            <div class="empty-state" id="empty-short-links">
-              <strong>No short links yet.</strong><br>
-              Create a memorable short link for a campaign or destination, then add it to this page when needed.
-            </div>
-          <?php else: ?>
-            <?php foreach ($shortLinks as $index => $link): ?>
-              <?php
-                $title = $link['title'] ?: $link['back_half'];
-                $shortUrl = xinng_short_url($link['back_half']);
-              ?>
-              <article class="link-card short-link-card" data-id="<?= e($link['id']) ?>" data-title="<?= e($title) ?>" data-back-half="<?= e($link['back_half']) ?>" data-destination-url="<?= e($link['destination_url']) ?>">
-                <div class="drag" aria-hidden="true">::</div>
-                <div>
-                  <div class="link-title">
-                    <?= e($title) ?>
-                    <button class="tiny-edit edit-short-link" type="button" aria-label="Edit <?= e($title) ?>">edit</button>
-                  </div>
-                  <div class="link-url">
-                    <span class="link-slug-text"><?= e($shortUrl) ?></span>
-                    <span class="link-url-actions">
-                      <button class="tiny-edit copy-short-link" type="button" data-copy="<?= e($shortUrl) ?>" aria-label="Copy short URL">copy</button>
-                      <span class="slug-share-icon" title="Copy short URL"><i class="fa-solid fa-copy"></i></span>
-                    </span>
-                  </div>
-                  <div class="destination-url">
-                    <span>Destination</span>
-                    <strong><?= e($link['destination_url']) ?></strong>
-                  </div>
-                  <div class="tool-row">
-                    <span class="active-tool" title="Short link"><i class="fa-solid fa-link"></i></span>
-                    <span title="Active"><?= e($link['status']) ?></span>
-                    <span title="Analytics"><i class="fa-solid fa-chart-simple"></i></span>
-                    <span class="click-count"><i class="fa-solid fa-arrow-pointer"></i><?= number_format((int) ($link['click_count'] ?? 0)) ?> clicks</span>
-                  </div>
-                </div>
-                <div class="link-actions">
-                  <span class="toggle<?= ($link['status'] ?? '') === 'active' ? ' on' : '' ?>" aria-label="<?= ($link['status'] ?? '') === 'active' ? 'Active' : 'Inactive' ?>"></span>
-                  <button class="action-icon archive-short-link" type="button" title="Archive"><i class="fa-regular fa-trash-can"></i></button>
-                </div>
-              </article>
+        <section class="setup-checklist" id="setup-checklist" aria-labelledby="setup-checklist-heading">
+          <div class="dashboard-section-heading"><div><span class="eyebrow">YOUR TODO LIST</span><h2 id="setup-checklist-heading">Finish setting up Xinng</h2></div><span class="setup-count"><?= $setupComplete ?> of <?= $setupTotal ?> complete</span></div>
+          <div class="setup-progress" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $setupProgress ?>"><span style="width:<?= $setupProgress ?>%"></span></div>
+          <ul class="setup-task-list">
+            <?php foreach ($setupTasks as $task): ?>
+              <li class="<?= $task['complete'] ? 'is-complete' : '' ?>">
+                <span class="setup-task-status" aria-hidden="true"><i class="fa-solid <?= $task['complete'] ? 'fa-check' : 'fa-arrow-right' ?>"></i></span>
+                <span class="setup-task-copy"><strong><?= e($task['label']) ?></strong><small><?= e($task['detail']) ?></small></span>
+                <?php if ($task['complete']): ?><span class="setup-task-done">Done</span><?php else: ?><a href="<?= e($task['href']) ?>">Continue <span aria-hidden="true">&nearr;</span></a><?php endif; ?>
+              </li>
             <?php endforeach; ?>
-          <?php endif; ?>
-          </div>
-        </div>
-      </div>
+          </ul>
+        </section>
+
+        <section class="recent-activity workspace-recent-activity" aria-labelledby="recent-activity-heading"><div class="dashboard-section-heading"><div><span class="eyebrow">RECENT ACTIVITY</span><h2 id="recent-activity-heading">Latest updates</h2></div></div><?php if ($recentActivity): ?><ul><?php foreach ($recentActivity as $activity): ?><li><span><small><?= e($activity['label']) ?></small><a href="<?= e($activity['href']) ?>"><?= e($activity['title']) ?></a></span><time datetime="<?= e($activity['at']) ?>"><?= e(date('M j', strtotime($activity['at']))) ?></time></li><?php endforeach; ?></ul><?php else: ?><p>Recent workspace updates will appear here.</p><?php endif; ?></section>
+      </div></div>
     </main>
-
-    <aside class="preview" aria-label="Public page preview">
-      <header class="preview-header">
-        <div class="url-pill">
-
-          <button class="pill-share" aria-label="Share page" title="Share page"><i class="fa-solid fa-share-nodes"></i></button>
-
-          <a class="label-icon" id="preview-open-link" href="<?= e($mainPageUrl) ?>" target="_blank" rel="noopener" aria-label="Open public page"><i class="fa-solid fa-mouse-pointer"></i></a>
-          
-          <span class="url-text" id="preview-url-text"><?= e(str_replace(['http://', 'https://'], '', $mainPageUrl)) ?></span>
-        </div>
-       
-      </header>
-
-      <div class="preview-body">
-        <div class="phone">
-          <div class="phone-screen">
-            <div class="phone-top">
-              <span class="phone-fab">*</span>
-              <span class="phone-fab">^</span>
-            </div>
-
-            <div class="phone-avatar"><?= e(initials($displayTitle)) ?></div>
-            <h2><?= e($displayTitle) ?></h2>
-            <p><?= e($displayBio) ?></p>
-            <div class="phone-socials">
-              <span>IG</span>
-              <span>WA</span>
-              <span>X</span>
-            </div>
-
-            <?php if (empty($links)): ?>
-              <a class="phone-link hero" href="#">
-                <span class="hero-icon">+</span>
-                <strong>Add short link</strong>
-              </a>
-            <?php else: ?>
-              <?php foreach ($links as $index => $link): ?>
-                <?php if (empty($link['is_active'])) continue; ?>
-                <?php if ($index === 0): ?>
-                  <a class="phone-link hero" href="#">
-                    <span class="hero-icon"><?= e(substr(link_icon($link['link_type'] ?? '', $link['title'] ?? ''), 0, 2)) ?></span>
-                    <strong><?= e($link['title']) ?></strong>
-                    <span class="more">:</span>
-                  </a>
-                <?php else: ?>
-                  <a class="phone-link" href="#">
-                    <?= e($link['title']) ?>
-                    <span class="more">:</span>
-                  </a>
-                <?php endif; ?>
-              <?php endforeach; ?>
-            <?php endif; ?>
-
-            <div class="phone-brand">xin.ng page builder preview</div>
-          </div>
-        </div>
-      </div>
-    </aside>
   </div>
-  <script src="https://js.paystack.co/v1/inline.js"></script>
-  <script src="assets/js/credit-checkout.js"></script>
-  <script>
-    (function(){
-      const csrf = '<?= e(csrf_token()) ?>';
-      const card = document.getElementById('main-page-card');
-      if (!card) return;
-      const pageId = card.dataset.pageId;
-      const publicPrefix = card.dataset.publicPrefix || '';
-      const editBtn = document.getElementById('edit-main-page-slug');
-      const form = document.getElementById('main-page-slug-form');
-      const input = document.getElementById('main-page-slug-input');
-      const cancel = document.getElementById('cancel-main-page-slug');
-      const slugText = document.getElementById('main-page-slug-text');
-      const status = document.getElementById('main-page-status');
-      const copyBtn = document.querySelector('.copy-main-page-url');
-      const mainOpen = document.getElementById('main-page-open-link');
-      const previewOpen = document.getElementById('preview-open-link');
-      const previewText = document.getElementById('preview-url-text');
-
-      function normalize(value) {
-        return String(value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
-      }
-      function publicUrl(slug) {
-        return publicPrefix + slug;
-      }
-      function displayUrl(slug) {
-        return publicUrl(slug).replace(/^https?:\/\//, '');
-      }
-      function setStatus(message, kind) {
-        status.textContent = message || '';
-        status.dataset.kind = kind || '';
-      }
-      function setEditing(isEditing) {
-        form.hidden = !isEditing;
-        slugText.hidden = isEditing;
-        editBtn.hidden = isEditing;
-        if (isEditing) {
-          input.value = slugText.textContent.trim();
-          input.focus();
-          input.select();
-          setStatus('', '');
-        }
-      }
-      function syncUrl(slug) {
-        const url = publicUrl(slug);
-        slugText.textContent = slug;
-        input.value = slug;
-        copyBtn.dataset.copy = url;
-        mainOpen.href = url;
-        previewOpen.href = url;
-        previewText.textContent = displayUrl(slug);
-      }
-
-      editBtn?.addEventListener('click', () => setEditing(true));
-      cancel?.addEventListener('click', () => setEditing(false));
-      input?.addEventListener('input', () => {
-        input.value = normalize(input.value);
-        setStatus(input.value.length < 3 ? 'Use at least 3 characters.' : '', input.value.length < 3 ? 'error' : '');
-      });
-      form?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const nextSlug = normalize(input.value);
-        if (!pageId) return setStatus('Create a page before editing the URL.', 'error');
-        if (nextSlug.length < 3) return setStatus('Use at least 3 characters.', 'error');
-        const saveBtn = form.querySelector('button[type="submit"]');
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving...';
-        setStatus('', '');
-        const body = new URLSearchParams({ page_id: pageId, slug: nextSlug, csrf_token: csrf });
-        try {
-          const response = await fetch('update_slug.php', { method: 'POST', body });
-          const data = await response.json();
-          if (!data.ok) {
-            setStatus(data.error === 'taken' ? 'That URL is already taken.' : 'Could not save this URL.', 'error');
-            return;
-          }
-          syncUrl(data.slug);
-          setEditing(false);
-          setStatus('URL updated.', 'success');
-        } catch (error) {
-          setStatus('Network error. Try again.', 'error');
-        } finally {
-          saveBtn.disabled = false;
-          saveBtn.textContent = 'Save';
-        }
-      });
-      copyBtn?.addEventListener('click', async () => {
-        const value = copyBtn.dataset.copy || '';
-        try {
-          await navigator.clipboard.writeText(value);
-          setStatus('URL copied.', 'success');
-        } catch (error) {
-          alert(value);
-        }
-      });
-    })();
-    (function(){
-      const toggle = document.querySelector('.notification-toggle');
-      const panel = document.getElementById('notification-panel');
-      const markAllRead = document.getElementById('mark-all-read');
-      if (toggle && panel) {
-        toggle.addEventListener('click', () => {
-          panel.hidden = !panel.hidden;
-        });
-      }
-      markAllRead?.addEventListener('click', async () => {
-        const response = await fetch('notifications.php?action=mark_all_read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'csrf_token=<?= e(csrf_token()) ?>'
-        });
-        if (response.ok) {
-          document.querySelectorAll('.notification-item.unread').forEach((item) => item.classList.remove('unread'));
-          const badge = document.querySelector('.notification-badge');
-          badge?.remove();
-          panel.hidden = false;
-        }
-      });
-      document.querySelectorAll('.notification-item').forEach((item) => {
-        item.addEventListener('click', async () => {
-          const id = item.dataset.id;
-          if (!id) return;
-          await fetch('notifications.php?action=mark_read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'id=' + encodeURIComponent(id) + '&csrf_token=<?= e(csrf_token()) ?>'
-          });
-          item.classList.remove('unread');
-          item.classList.add('read');
-        });
-      });
-    })();
-    (function(){
-      const note = document.getElementById('model-note');
-      const close = note?.querySelector('.model-note-close');
-      if (!note || !close) return;
-      close.addEventListener('click', ()=>{ note.style.display = 'none'; });
-    })();
-    (function(){
-      const csrf = '<?= e(csrf_token()) ?>';
-      const list = document.getElementById('short-link-list');
-      const addBtn = document.getElementById('add-short-link');
-      if (!list || !addBtn) return;
-
-      function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>"']/g, function(char) {
-          return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]);
-        });
-      }
-
-      function formCard(data = {}) {
-        const isEdit = Boolean(data.id);
-        const article = document.createElement('article');
-        article.className = 'link-card short-link-card editing';
-        if (isEdit) article.dataset.id = data.id;
-        article.innerHTML = `
-          <form class="short-link-form">
-            <div class="form-grid">
-              <div class="field">
-                <label>Title</label>
-                <input name="title" type="text" value="${escapeHtml(data.title || '')}" placeholder="Sheltercon campaign">
-              </div>
-              <div class="field">
-                <label>Back-half</label>
-                <input name="back_half" type="text" value="${escapeHtml(data.back_half || '')}" placeholder="sheltercon" required>
-              </div>
-            </div>
-            <div class="field">
-              <label>Destination URL</label>
-              <input name="destination_url" type="text" value="${escapeHtml(data.destination_url || '')}" placeholder="link.com, www.link.com, https://link.com, or http://link.com" required>
-            </div>
-            <div class="form-actions">
-              <div class="form-error" role="alert"></div>
-              <div class="form-actions-main">
-                <button class="small-btn cancel-short-link" type="button">Cancel</button>
-                <button class="small-btn primary save-short-link" type="submit"><i class="fa-solid fa-floppy-disk"></i>Save</button>
-              </div>
-            </div>
-          </form>
-        `;
-        return article;
-      }
-
-      function showError(form, message) {
-        const error = form.querySelector('.form-error');
-        if (error) error.textContent = message || '';
-      }
-
-      async function requestShortLink(payload, method) {
-        const body = new URLSearchParams(payload);
-        body.append('csrf_token', csrf);
-        if (method && method !== 'POST') body.append('_method', method);
-        const response = await fetch('api/short-links.php', { method: 'POST', body });
-        const data = await response.json().catch(() => ({ ok: false, error: 'Invalid server response.' }));
-        return { status: response.status, data };
-      }
-
-      addBtn.addEventListener('click', () => {
-        const existingDraft = list.querySelector('.short-link-card.editing:not([data-id])');
-        if (existingDraft) {
-          existingDraft.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          existingDraft.querySelector('input')?.focus();
-          return;
-        }
-        document.getElementById('empty-short-links')?.remove();
-        const card = formCard();
-        list.appendChild(card);
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        card.querySelector('input')?.focus();
-      });
-
-      list.addEventListener('click', async (event) => {
-        const editBtn = event.target.closest('.edit-short-link');
-        if (editBtn) {
-          const card = editBtn.closest('.short-link-card');
-          if (!card) return;
-          card.replaceWith(formCard({
-            id: card.dataset.id,
-            title: card.dataset.title,
-            back_half: card.dataset.backHalf,
-            destination_url: card.dataset.destinationUrl
-          }));
-          return;
-        }
-
-        const cancelBtn = event.target.closest('.cancel-short-link');
-        if (cancelBtn) {
-          const card = cancelBtn.closest('.short-link-card');
-          if (!card) return;
-          if (card.dataset.id) {
-            location.reload();
-          } else {
-            card.remove();
-            if (!list.querySelector('.short-link-card')) {
-              list.innerHTML = '<div class="empty-state" id="empty-short-links"><strong>No short links yet.</strong><br>Create a memorable short link for a campaign or destination, then add it to this page when needed.</div>';
-            }
-          }
-          return;
-        }
-
-        const copyBtn = event.target.closest('.copy-short-link, .slug-share-icon');
-        if (copyBtn) {
-          const copyValue = copyBtn.dataset.copy || copyBtn.closest('.link-url')?.querySelector('.link-slug-text')?.textContent?.trim();
-          if (!copyValue) return;
-          try {
-            await navigator.clipboard.writeText(copyValue);
-            copyBtn.closest('.link-url')?.classList.add('copied');
-            setTimeout(() => copyBtn.closest('.link-url')?.classList.remove('copied'), 900);
-          } catch (e) {
-            alert(copyValue);
-          }
-          return;
-        }
-
-        const archiveBtn = event.target.closest('.archive-short-link');
-        if (archiveBtn) {
-          const card = archiveBtn.closest('.short-link-card');
-          if (!card?.dataset.id) return;
-          if (!confirm('Archive this short link? Analytics will be preserved.')) return;
-          archiveBtn.disabled = true;
-          const result = await requestShortLink({ id: card.dataset.id }, 'DELETE');
-          if (result.data.ok) {
-            card.remove();
-            if (!list.querySelector('.short-link-card')) {
-              list.innerHTML = '<div class="empty-state" id="empty-short-links"><strong>No short links yet.</strong><br>Create a memorable short link for a campaign or destination, then add it to this page when needed.</div>';
-            }
-          } else {
-            alert(result.data.error || 'Unable to archive short link.');
-            archiveBtn.disabled = false;
-          }
-        }
-      });
-
-      list.addEventListener('submit', async (event) => {
-        const form = event.target.closest('.short-link-form');
-        if (!form) return;
-        event.preventDefault();
-        showError(form, '');
-        const card = form.closest('.short-link-card');
-        const save = form.querySelector('.save-short-link');
-        const payload = {
-          title: form.elements.title.value.trim(),
-          back_half: form.elements.back_half.value.trim(),
-          destination_url: form.elements.destination_url.value.trim()
-        };
-        if (card?.dataset.id) payload.id = card.dataset.id;
-        save.disabled = true;
-        const result = await requestShortLink(payload, card?.dataset.id ? 'PATCH' : 'POST');
-        if (result.status === 409 && result.data.requires_confirmation) {
-          save.disabled = false;
-          if (confirm(result.data.message || 'Changing the destination URL will create a new short link so analytics stay accurate. Continue?')) {
-            payload.confirm_create_new = '1';
-            const confirmed = await requestShortLink(payload, 'PATCH');
-            if (confirmed.data.ok) location.reload();
-            else showError(form, confirmed.data.error || 'Unable to save short link.');
-          }
-          return;
-        }
-        if (result.data.ok) {
-          location.reload();
-        } else {
-          showError(form, result.data.error || 'Unable to save short link.');
-          save.disabled = false;
-        }
-      });
-    })();
-
-    const xDisconnect = document.getElementById('x-disconnect');
-    const xPostText = document.getElementById('x-post-text');
-    const xPublish = document.getElementById('x-publish');
-    const xPostCount = document.getElementById('x-post-count');
-    const xPostStatus = document.getElementById('x-post-status');
-    if (xPostText && xPostCount) {
-      xPostText.addEventListener('input', () => {
-        xPostCount.textContent = `${xPostText.value.length} / 280`;
-      });
-    }
-    if (xPublish) {
-      xPublish.addEventListener('click', async () => {
-        const text = xPostText.value.trim();
-        xPostStatus.textContent = '';
-        if (!text) { xPostStatus.textContent = 'Write a post first.'; return; }
-        if (!confirm('Publish this post to X now?')) return;
-        xPublish.disabled = true;
-        try {
-          const response = await fetch('api/x/publish.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': xPublish.dataset.csrf },
-            body: JSON.stringify({ text, confirm: true })
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || 'The post could not be published.');
-          xPostStatus.textContent = '';
-          const publishedLink = document.createElement('a');
-          publishedLink.href = result.post.url;
-          publishedLink.target = '_blank';
-          publishedLink.rel = 'noopener';
-          publishedLink.textContent = 'Published on X';
-          xPostStatus.appendChild(publishedLink);
-          xPostText.value = '';
-          xPostCount.textContent = '0 / 280';
-        } catch (error) {
-          xPostStatus.textContent = error.message;
-        } finally {
-          xPublish.disabled = false;
-        }
-      });
-    }
-    if (xDisconnect) {
-      xDisconnect.addEventListener('click', async () => {
-        if (!confirm('Disconnect this X account?')) return;
-        xDisconnect.disabled = true;
-        const response = await fetch('api/x/disconnect.php', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': xDisconnect.dataset.csrf }
-        });
-        if (response.ok) location.reload();
-        else {
-          xDisconnect.disabled = false;
-          alert('The X account could not be disconnected.');
-        }
-      });
-    }
-  </script>
 </body>
 </html>

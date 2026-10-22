@@ -3,11 +3,11 @@ const roadmapTask=(milestone,title,description,acceptance,refs,priority='High',d
 const TRAINS = [
   {key:'platform',code:'A',name:'Platform & workspace',summary:'Identity, organizations, navigation and shared services',owner:'Platform Squad',color:'#d8ff57',tasks:[
     'Stabilize account creation, sign-in and password recovery',
-    'Implement organizations, membership and workspace switching',
-    'Define server-side RBAC and specialist role scopes',
-    'Consolidate desktop, mobile and permission-aware navigation',
-    'Build authorized cross-product global search',
-    'Create cross-product dashboard health and activity views',
+    {title:'Implement organizations, membership and workspace switching',description:'Create canonical organizations and memberships, give every account a personal workspace, and allow users to switch only into workspaces where they hold an active membership.',acceptance:'Users can create and switch organizations; owners and administrators can add existing Xinng users, assign non-owner roles and remove members; all switches and management actions are CSRF-protected, server-authorized and auditable.',refs:'config.php; workspaces.php; includes/workspace-sidebar.php; tests/workspace_test.php',priority:'Critical',dependency:'XNG-001',status:'Done'},
+    {title:'Define server-side RBAC and specialist role scopes',description:'Enforce current organization permissions from active server-side membership, separate finance approval, prevent role escalation, and define resource-scoped specialist roles without assigning them yet.',acceptance:'Unknown roles and permissions fail closed; inactive memberships and organizations grant no access; owners cannot be demoted; administrators cannot grant or change administrator access or approve finance actions; specialist roles are not assignable until resource binding exists; policy and database-backed tests pass.',refs:'includes/rbac.php; config.php; workspaces.php; docs/rbac.md; tests/rbac_test.php; tests/workspace_test.php',priority:'Critical',dependency:'XNG-002',status:'Done'},
+    {title:'Consolidate desktop, mobile and permission-aware navigation',description:'Use one shared navigation definition on every workspace page, retain the current user-owned product areas, and use the active workspace role for workspace-management controls.',acceptance:'Desktop uses one retractable sidebar; mobile opens that same sidebar as an accessible drawer with a backdrop and Escape support; active links and page subnavigation stay consistent; workspace switching remains available to active members while management is not rendered for roles without the relevant permission; navigation policy checks pass.',refs:'includes/workspace-navigation.php; includes/workspace-sidebar.php; includes/workspace-header-utilities.php; assets/css/workspace-sidebar.css; tests/workspace_navigation_test.php',priority:'Critical',dependency:'XNG-003',status:'Done'},
+    {title:'Build authorized cross-product global search',description:'Search pages, short links and QR codes from the shared workspace header without exposing records outside the signed-in user’s authorized scope.',acceptance:'Search requires an authenticated session, uses parameterized queries, returns only user-owned records while products remain user-owned, limits results, and provides a keyboard-accessible header dialog.',refs:'workspace_search.php; includes/workspace-search.php; includes/workspace-header-utilities.php; assets/css/workspace-floating.css',priority:'Critical',dependency:'XNG-004',status:'Done'},
+    {title:'Create cross-product dashboard activity views',description:'Add a concise recent activity feed to Overview using only the user’s own records.',acceptance:'The dashboard shows recent page/link/QR updates with owned links only, handles an empty workspace, and keeps existing performance metrics intact.',refs:'dashboard.php; includes/workspace-search.php; assets/css/dashboard-overview.css',priority:'High',dependency:'XNG-005',status:'Done'},
     'Standardize files, media, notifications and audit services',
     'Introduce versioned database migration discipline',
     'Add background jobs, schedules and provider adapters',
@@ -181,6 +181,13 @@ const TRAINS = [
     roadmapTask('PF17','Create finance administration controls','Allow authorized operators to manage plans, rate cards, allowances, adjustments, provider state and exceptions with separation of duties.','Every change is permission-checked, versioned and audited; adjustment approvers cannot silently execute their own requests.','admin console; audit_logs; RBAC','High','PF1, PF5, PF16'),
     roadmapTask('PF18','Harden finance security and automated tests','Add concurrency, idempotency, webhook-signature, authorization, migration and end-to-end tests for subscription and credit flows.','Critical finance suites pass; replay and race tests prove no duplicate money or credit movement; logs contain no credentials.','test suite; CI; security runbooks','Critical','PF3–PF17'),
     roadmapTask('PF19','Complete finance documentation and deployment readiness','Publish operating procedures, migration and rollback plans, support playbooks, dashboards and launch gates.','Staging reconciliation passes; provider readiness is recorded; Pandascrow remains planned until verified; owners approve rollout.','finance runbook; deployment checklist; PRDs','High','PF18')
+  ]},
+  {key:'future_dashboard',code:'O',name:'Future dashboard modules',summary:'Original dashboard concepts scheduled after the current channels',owner:'Platform Squad',color:'#ffe1d6',tasks:[
+    roadmapTask('D0','Build live chat and chatbot workspace','Add a customer conversation inbox, human handoff and a configurable assistant when messaging infrastructure is ready.','Authorized staff can review conversations, take over from the assistant and see a traceable message history.','Original dashboard plan; communications inbox; AI gateway','Medium','Communications inbox and AI gateway'),
+    roadmapTask('D1','Add chatbot customization and knowledge base','Provide assistant appearance, behavior and approved knowledge sources for answer generation.','Workspace owners can publish tested assistant settings and source content; answers respect organization permissions and show provenance.','Original dashboard plan; files; AI gateway','Medium','D0'),
+    roadmapTask('D2','Deliver channel integrations and email identities','Create a managed connection catalog for external channels and verified sender identities.','Connected channels show status and ownership; email sender setup requires verified domain or provider evidence before use.','Original dashboard plan; provider adapters; communications','Medium','Communications and social account framework'),
+    roadmapTask('D3','Build account profile and workspace settings','Give users a secure place to update profile details, personal preferences and organization settings.','Changes are scoped to the signed-in user or an authorized organization role and are auditable where sensitive.','Original dashboard plan; users; organizations','Medium','XNG-002 and server-side RBAC'),
+    roadmapTask('D4','Expand dashboard navigation and activity cards by release','Add Contacts, Campaigns, Inbox, Flow, Social, Subscription and related metrics as each product train ships.','Only enabled and authorized modules appear; every summary links to a working destination and uses real product data.','Original dashboard plan; XINNGPRDfull.md navigation shell','High','Audience, Communications, Flow, Social and Finance releases')
   ]}
 ];
 
@@ -189,7 +196,7 @@ const phaseNames=['Foundation','Core build','Integration','Hardening','Release']
 const tasks=[];
 
 const trainGuidance={
-  platform:'workspace isolation, RBAC, auditability and shared-service contracts',presence:'public rendering, branded assets, attribution and safe destination handling',audience:'contact identity, consent, deduplication and lifecycle history',communications:'channel compliance, provider events, deliverability and message history',flow:'versioned definitions, deterministic execution, retries and run inspection',pr:'editorial workflow, publisher evidence, order state and transparent reporting',social:'authorized accounts, platform constraints, evidence review and anti-abuse controls',intelligence:'source provenance, confidence, freshness, permissions and explainability',events:'organizer operations, attendee experience, fulfilment and onsite resilience',creator:'rule versions, user-confirmed inputs, methodology and shareable outcomes',commerce:'server verification, immutable ledgers, reconciliation and financial separation of duties',admin:'least privilege, exception queues, audit evidence and operational recovery',nano:'mission safety, evidence, funded rewards, creator trust and campaign reuse',platform_finance:'entitlements, immutable ledgers, metering, provider verification and reconciliation'
+  platform:'workspace isolation, RBAC, auditability and shared-service contracts',presence:'public rendering, branded assets, attribution and safe destination handling',audience:'contact identity, consent, deduplication and lifecycle history',communications:'channel compliance, provider events, deliverability and message history',flow:'versioned definitions, deterministic execution, retries and run inspection',pr:'editorial workflow, publisher evidence, order state and transparent reporting',social:'authorized accounts, platform constraints, evidence review and anti-abuse controls',intelligence:'source provenance, confidence, freshness, permissions and explainability',events:'organizer operations, attendee experience, fulfilment and onsite resilience',creator:'rule versions, user-confirmed inputs, methodology and shareable outcomes',commerce:'server verification, immutable ledgers, reconciliation and financial separation of duties',admin:'least privilege, exception queues, audit evidence and operational recovery',nano:'mission safety, evidence, funded rewards, creator trust and campaign reuse',platform_finance:'entitlements, immutable ledgers, metering, provider verification and reconciliation',future_dashboard:'release gates, working destinations, organization permissions and genuine usage data'
 };
 
 function buildSubtasks(task){
@@ -202,7 +209,7 @@ function buildSubtasks(task){
     {title:`Implement ${subject} experience`,detail:`Build the primary desktop and mobile workflow for ${subject.toLowerCase()}, including loading, empty, error and recovery states. Use shared Xinng navigation, components and accessibility conventions.`},
     {title:`Connect ${subject} to the Xinng spine`,detail:`Integrate ${subject.toLowerCase()} with the relevant identity, organization, contact, media, notification, commerce and analytics services. Preserve the dependency on ${task.dependency} and make failure handling observable.`},
     {title:`Verify and release ${short}`,detail:`Add unit, integration and permission tests; verify analytics and audit events; document operational ownership; and capture evidence that the ${task.phaseName.toLowerCase()} acceptance criteria are satisfied before handoff.`}
-  ].map((item,index)=>({...item,id:`${task.id}-S${index+1}`,done:false}));
+  ].map((item,index)=>({...item,id:`${task.id}-S${index+1}`,done:task.status==='Done'}));
 }
 
 TRAIN_DEFS();
@@ -215,7 +222,7 @@ function TRAIN_DEFS(){
     const start=new Date('2026-10-19T00:00:00');
     start.setDate(start.getDate()+trainIndex*7+index*3);
     const due=new Date(start); due.setDate(due.getDate()+7);
-    const initial=index===0&&['platform','presence','communications','creator'].includes(train.key)?'In progress':'To do';
+    const initial=item.status||(index===0&&['platform','presence','communications','creator'].includes(train.key)?'In progress':'To do');
     const fallbackPhaseIndex=Math.min(phaseNames.length-1,Math.floor(index/2));
     const phaseName=item.milestone||phaseNames[fallbackPhaseIndex];
     tasks.push({
@@ -238,12 +245,24 @@ function TRAIN_DEFS(){
 
 const STORAGE='xinng-master-tracker-v3';
 const saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');
+const TRACKER_MIGRATIONS_STORAGE='xinng-master-tracker-migrations';
+const trackerMigrations=JSON.parse(localStorage.getItem(TRACKER_MIGRATIONS_STORAGE)||'{}');
+const completeXng002Migration=!trackerMigrations['xng-002-complete-v1'];
+const completeXng003Migration=!trackerMigrations['xng-003-complete-v1'];
 tasks.forEach((task,index)=>{
   const stored=saved[task.id];
+  if(task.id==='XNG-002'&&completeXng002Migration)return;
+  if(task.id==='XNG-003'&&completeXng003Migration){
+    const previousNote='RBAC implementation is in place; local database-backed integration checks remain pending.';
+    tasks[index]={...task,status:'Done',notes:stored?.notes&&stored.notes!==previousNote?stored.notes:'RBAC policy checks and database-backed workspace isolation checks passed.',subtasks:task.subtasks.map(subtask=>({...subtask,done:true}))};
+    return;
+  }
   if(!stored)return;
   const storedSubtasks=stored.subtasks||{};
   tasks[index]={...task,status:stored.status||task.status,notes:stored.notes||'',subtasks:task.subtasks.map(subtask=>({...subtask,done:Boolean(storedSubtasks[subtask.id])}))};
 });
+if(completeXng002Migration){trackerMigrations['xng-002-complete-v1']=true;localStorage.setItem(TRACKER_MIGRATIONS_STORAGE,JSON.stringify(trackerMigrations));}
+if(completeXng003Migration){trackerMigrations['xng-003-complete-v1']=true;localStorage.setItem(TRACKER_MIGRATIONS_STORAGE,JSON.stringify(trackerMigrations));}
 
 let activeTask=null;
 let currentView='list';

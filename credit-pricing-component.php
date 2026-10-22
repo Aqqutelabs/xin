@@ -26,6 +26,7 @@ $pricingContext = $pricingContext ?? 'dashboard';
         <div class="credit-package-actions">
           <button class="primary-btn credit-package-button" type="button" data-paystack-package="<?= e($package['id']) ?>">Pay with Paystack</button>
           <button class="ghost-btn credit-package-button" type="button" data-nowpayments-package="<?= e($package['id']) ?>">Pay with crypto</button>
+          <button class="ghost-btn credit-package-button credit-transfer-button" type="button" data-bank-transfer-open data-package="<?= e($package['id']) ?>">Pay with Transfer</button>
         </div>
       </article>
     <?php endforeach; ?>

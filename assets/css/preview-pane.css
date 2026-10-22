@@ -1,0 +1,67 @@
+[data-preview-pane]{position:fixed!important;inset:var(--preview-top,0px) 0 0 auto!important;z-index:120!important;width:min(420px,100vw)!important;height:calc(100svh - var(--preview-top,0px))!important;min-height:0!important;overflow-y:auto!important;background:#f7f3f1;box-shadow:-16px 0 40px #201a1930}
+.preview-pane-close{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:38px;min-height:38px;border:1px solid #e7dedb;border-radius:10px;background:#fff;color:#4a1012;font:800 11px Manrope,system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 14px #4a101210}
+.preview-pane-close{position:absolute;z-index:4;top:18px;right:14px;width:38px;padding:0}
+.preview-pane-backdrop{display:none}
+.preview-pane-backdrop[hidden]{display:none!important}
+.dashboard-home .notification-panel{position:fixed!important;right:auto!important;z-index:500!important;max-height:calc(100svh - 28px);overflow-y:auto}
+.dashboard-home .notification-panel[hidden]{display:none!important}
+.preview-pane-close:hover{border-color:#c92a24;color:#a6201d}
+.preview-pane-close:focus-visible{outline:3px solid #c92a24;outline-offset:3px}
+.dashboard [data-preview-pane] .preview-header{padding-right:62px}
+.qr-screen .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr)!important}
+.qr-screen .qr-list-preview{min-width:0;background:#f7f3f1}
+.qr-screen .qr-list-preview .preview-header{min-height:76px;padding-left:22px}
+.qr-screen .qr-list-preview .preview-header strong,.qr-screen .qr-list-preview .preview-header small{display:block}
+.qr-screen .qr-list-preview .preview-header strong{font-size:14px;color:#201a19}
+.qr-screen .qr-list-preview .preview-header small{margin-top:3px;font-size:10px;color:#6f6562}
+.qr-screen .qr-list-preview .preview-body{padding:24px 18px}
+.qr-list-preview-card{padding:18px;border:1px solid #e7dedb;border-radius:16px;background:#fff;box-shadow:0 8px 28px #4a10120b}
+.qr-list-preview-image{display:grid;place-items:center;min-height:278px;margin-bottom:18px;border-radius:12px;background:#fff9f7}
+.qr-list-preview-image img{width:min(242px,100%);height:auto;max-height:242px;object-fit:contain}
+.qr-list-preview-label{color:#a6201d;font-size:9px;font-weight:900;letter-spacing:.13em}
+.qr-list-preview-card h2{margin:7px 0 4px;color:#201a19;font-size:18px;line-height:1.3;overflow-wrap:anywhere}
+.qr-list-preview-card p{margin:0;color:#6f6562;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.qr-list-preview-scans{display:block;margin-top:13px;color:#8b7e78;font-size:10px}
+.qr-list-preview-actions{display:flex;gap:8px;margin-top:18px}
+.qr-list-preview-actions>*{display:inline-flex;align-items:center;justify-content:center;flex:1;min-height:38px;padding:6px 10px;border:1px solid #e7dedb;border-radius:9px;background:#fff;color:#4a1012;font:800 10px Manrope,system-ui,sans-serif;text-align:center;text-decoration:none;cursor:pointer}
+.qr-list-preview-actions>*:first-child{border-color:#c92a24;background:#c92a24;color:#fff}
+.qr-list-preview-empty{padding:32px 20px;border:1px dashed #d8cac6;border-radius:15px;background:#fff;text-align:center}
+.qr-list-preview-empty i{color:#c92a24;font-size:30px}
+.qr-list-preview-empty h2{margin:12px 0 5px;font-size:17px}
+.qr-list-preview-empty p{margin:0;color:#6f6562;font-size:11px;line-height:1.5}
+.qr-screen .qr-card.is-previewed{border-color:#c92a24;box-shadow:0 0 0 2px #c92a2414}
+body.preview-pane-closed [data-preview-pane]{display:none!important}
+body.pages-screen .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr)!important}
+body.dashboard-home .dashboard{grid-template-columns:230px minmax(0,1fr)!important}
+body.builder-page:not(.qr-editor-screen) .builder-shell{grid-template-columns:190px minmax(0,1fr)!important}
+body.qr-editor-screen .builder-shell{grid-template-columns:minmax(0,1fr)!important}
+/* Pages desktop preview is a real grid column: it consumes layout width instead
+   of floating above the page list. Small screens continue to use the drawer. */
+@media(min-width:1181px){
+  body.pages-screen .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr) minmax(340px,420px)!important}
+  body.pages-screen.preview-pane-closed .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr)!important}
+  body.pages-screen [data-preview-pane]{position:relative!important;inset:auto!important;z-index:auto!important;width:auto!important;height:100vh!important;margin-top:0;min-height:0!important;overflow-y:auto!important;box-shadow:none!important}
+  body.pages-screen .preview-pane-backdrop{display:none!important}
+}
+
+/* Any desktop preview uses a reserved layout column. The class is set by the
+   shared preview controller only when that page is above its own breakpoint. */
+body.preview-pane-desktop-layout .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr) minmax(340px,420px)!important}
+body.preview-pane-desktop-layout.preview-pane-closed .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr)!important}
+body.preview-pane-desktop-layout [data-preview-pane]{position:relative!important;inset:auto!important;z-index:auto!important;width:auto!important;height:100vh!important;margin-top:0;min-height:0!important;overflow-y:auto!important;box-shadow:none!important}
+body.preview-pane-desktop-layout .preview-pane-backdrop{display:none!important}
+body.preview-pane-desktop-layout.builder-page:not(.qr-editor-screen) .builder-shell{grid-template-columns:190px minmax(0,1fr) minmax(340px,420px)!important}
+body.preview-pane-desktop-layout.builder-page.qr-editor-screen .builder-shell{grid-template-columns:minmax(0,1fr) minmax(340px,420px)!important}
+body.preview-pane-desktop-layout.preview-pane-closed.builder-page:not(.qr-editor-screen) .builder-shell{grid-template-columns:190px minmax(0,1fr)!important}
+body.preview-pane-desktop-layout.preview-pane-closed.builder-page.qr-editor-screen .builder-shell{grid-template-columns:minmax(0,1fr)!important}
+@media(max-width:1320px){body.pages-screen .dashboard{grid-template-columns:224px minmax(0,1fr)!important}}
+@media(max-width:1250px){body.dashboard-home.preview-pane-mobile-open [data-preview-pane]{display:block!important}}
+@media(max-width:1180px){.qr-screen .qr-list-preview{display:none!important}body.preview-pane-mobile-open [data-preview-pane]{display:block!important}body.preview-pane-mobile-open.builder-page [data-preview-pane]{display:grid!important}body.builder-page:not(.qr-editor-screen) .builder-shell{grid-template-columns:72px minmax(0,1fr)!important}}
+@media(max-width:1180px){body.ai-workspace-page [data-preview-pane]{display:none!important}body.ai-workspace-page.preview-pane-mobile-open [data-preview-pane]{display:block!important}}
+@media(max-width:1250px){body.preview-pane-mobile-open .preview-pane-backdrop{display:block;position:fixed;inset:0;z-index:110;width:100%;height:100%;border:0;background:#201a1980;cursor:pointer}}
+@media(max-width:760px){body.pages-screen .dashboard,body.dashboard-home .dashboard,body.qr-screen .dashboard,body.builder-page:not(.qr-editor-screen) .builder-shell{display:block!important}}
+
+@media(min-width:1181px){
+  body.pages-screen .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr) minmax(340px,420px)!important}
+  body.pages-screen.preview-pane-closed .dashboard{grid-template-columns:var(--workspace-sidebar-width,276px) minmax(0,1fr)!important}
+}

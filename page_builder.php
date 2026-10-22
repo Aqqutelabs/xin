@@ -56,7 +56,9 @@ $csrf = csrf_token();
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Page Builder - <?= e($page['title'] ?: $page['slug']) ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-social-styles-v4">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261019-pages-nav">
+  <link rel="stylesheet" href="assets/css/preview-pane.css?v=20261019f">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body class="builder-page">
   <header class="builder-topbar">
@@ -80,9 +82,14 @@ $csrf = csrf_token();
   </header>
   <main class="builder-shell">
     <aside class="builder-global-nav" aria-label="Workspace navigation">
-      <a href="dashboard.php"><i class="fa-solid fa-link"></i><span>URL Links</span></a>
-      <a href="pages.php"><i class="fa-regular fa-file-lines"></i><span>Pages</span></a>
-      <a class="<?= ($page['page_type'] ?? '') === 'event' ? 'active' : '' ?>" href="events.php"><i class="fa-solid fa-calendar-days"></i><span>Events</span></a>
+      <a href="short_links.php"><i class="fa-solid fa-link"></i><span>Short Links</span></a>
+      <div class="builder-page-nav-group">
+        <a class="<?= ($page['page_type'] ?? '') === 'event' ? 'has-active-child' : 'active' ?>" href="pages.php"><i class="fa-regular fa-file-lines"></i><span>Pages</span></a>
+        <div class="builder-page-nav-children" role="group" aria-label="Pages">
+          <a class="<?= ($page['page_type'] ?? '') === 'event' ? 'active' : '' ?>" href="events.php"><i class="fa-solid fa-calendar-days"></i><span>Events</span></a>
+          <a href="ai_page.php"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI Page Builder</span></a>
+        </div>
+      </div>
       <a href="qr_codes.php"><i class="fa-solid fa-qrcode"></i><span>QR Codes</span></a>
       <a href="insights.php"><i class="fa-solid fa-chart-line"></i><span>Insights</span></a>
     </aside>
@@ -183,7 +190,7 @@ $csrf = csrf_token();
         </section>
       </div>
     </section>
-    <aside class="builder-preview">
+    <aside class="builder-preview" data-preview-pane data-preview-label="page preview">
       <span class="live-badge">Live preview</span>
       <div class="phone bitly-phone"><div class="phone-screen" id="page-preview"></div></div>
       <p class="preview-note">Scheduled and Disabled links are not shown</p>
@@ -216,5 +223,6 @@ $csrf = csrf_token();
   </script>
   <script src="assets/js/page-builder.js?v=20261017-merge-v1"></script>
   <script src="assets/js/x-share.js"></script>
+  <script src="assets/js/preview-pane.js?v=20261019b"></script>
 </body>
 </html>

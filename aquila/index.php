@@ -39,6 +39,7 @@ $stack = [
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css">
   <link rel="stylesheet" href="../assets/css/aquila.css?v=<?= filemtime(__DIR__ . '/../assets/css/aquila.css') ?>">
+  <?php require __DIR__ . '/../includes/google-analytics.php'; ?>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>

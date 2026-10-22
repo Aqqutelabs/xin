@@ -64,52 +64,22 @@ $csrf = csrf_token();
   <title>Pages - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css?v=20261016-event-page-modal">
+  <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
+  <link rel="stylesheet" href="assets/css/preview-pane.css?v=20261019f">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body class="pages-screen">
+<body class="pages-screen workspace-shell-page">
   <div class="dashboard">
-    <aside class="sidebar" aria-label="Dashboard navigation">
-      <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
-
-      <div class="account">
-        <div class="account-main">
-          <span class="avatar"><?= e(pages_initials($user_name)) ?></span>
-          <span><?= e($activePage['slug'] ?? $user_name) ?></span>
-          <span aria-hidden="true">v</span>
-        </div>
-      </div>
-
-      <nav>
-        <div class="nav-section">
-          <div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
-          <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
-          <a class="nav-item active" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
-          <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
-          <a class="nav-item" href="ai_page.php"><span class="nav-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>AI Page Builder</a>
-          <a class="nav-item" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
-          <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
-        </div>
-      </nav>
-
-      <div class="setup-card">
-        <div class="progress-ring" style="--completion: <?= (int)$completion ?>%;"><?= (int)$completion ?>%</div>
-        <strong>Your setup checklist</strong>
-        <p><?= count($pages) ? '4 of 6 complete' : '1 of 6 complete' ?></p>
-        <button class="primary-btn" id="sidebar-create-page" type="button"><span class="label-icon"><i class="fa-solid fa-plus"></i></span>Finish setup</button>
-      </div>
-    </aside>
+    <?php
+      $sidebarActive = 'pages';
+      $sidebarUserName = $user_name;
+      $sidebarDisplayName = $activePage['slug'] ?? $user_name;
+      $sidebarBottom = ['progress' => (int)$completion, 'title' => 'Your setup checklist', 'body' => count($pages) ? '4 of 6 complete' : '1 of 6 complete', 'action_label' => 'Finish setup', 'action_type' => 'button', 'action_id' => 'sidebar-create-page'];
+      include __DIR__ . '/includes/workspace-sidebar.php';
+    ?>
 
     <main class="main">
-      <header class="main-header">
-        <div class="header-title">
-          <h1>Pages</h1>
-          <span>Create and manage your mobile landing pages.</span>
-        </div>
-        <div class="header-actions">
-          <button class="primary-btn header-create-page" id="header-create-page" type="button"><i class="fa-solid fa-plus"></i>Create page</button>
-          <a class="icon-btn" href="#" aria-label="Settings"><i class="fa-solid fa-gear"></i></a>
-          <a class="icon-btn" href="?action=logout" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
-        </div>
-      </header>
+      <?php $workspaceHeaderTitle = 'Pages'; $workspaceHeaderSubtitle = 'Create and manage your mobile landing pages.'; include __DIR__ . '/includes/workspace-shell-header.php'; ?>
 
       <div class="content">
         <div class="editor-column">
@@ -187,7 +157,7 @@ $csrf = csrf_token();
       </div>
     </main>
 
-    <aside class="preview" aria-label="Page preview">
+    <aside class="preview" data-preview-pane data-preview-label="page preview" aria-label="Page preview">
       <header class="preview-header">
         <div class="url-pill">
           <button class="pill-share" aria-label="Share page" title="Share page"><i class="fa-solid fa-share-nodes"></i></button>
@@ -401,5 +371,6 @@ $csrf = csrf_token();
     });
   })();
   </script>
+  <script src="assets/js/preview-pane.js?v=20261019b"></script>
 </body>
 </html>

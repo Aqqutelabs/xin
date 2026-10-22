@@ -17,6 +17,7 @@ $base = htmlspecialchars($base, ENT_QUOTES, 'UTF-8');
   <link rel="icon" href="<?= $base ?>/assets/images/logo-icon.svg">
   <link rel="stylesheet" href="<?= $base ?>/assets/css/style.css">
   <link rel="stylesheet" href="<?= $base ?>/assets/css/teleprompter.css">
+  <?php require __DIR__ . '/../../includes/google-analytics.php'; ?>
 </head>
 <body class="tp-app" data-base="<?= $base ?>">
   <a class="tp-skip" href="#script">Skip to script</a>

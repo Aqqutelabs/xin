@@ -49,6 +49,7 @@ if ($pdo) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Credits — <?= e($APP_NAME) ?></title>
   <link rel="stylesheet" href="<?= e(xinng_public_base_url()) ?>/assets/css/style.css">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body class="pricing-page">
   <div class="pricing-shell">

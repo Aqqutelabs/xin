@@ -24,6 +24,7 @@ $savedQrId = $qrData['saved_qr_id'] ?? null;
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>QR Preview — <?= htmlspecialchars($APP_NAME) ?></title>
   <link rel="stylesheet" href="assets/css/style.css">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
 <body class="landing-page">
   <div class="landing-bg-glow" aria-hidden="true"></div>

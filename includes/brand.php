@@ -3,7 +3,7 @@
 function xinng_brand_logo_url(string $baseUrl): string {
     static $version = null;
     if ($version === null) {
-        $version = (string) filemtime(__DIR__ . '/../assets/images/logo.svg');
+        $version = (string) filemtime(__DIR__ . '/../assets/images/Logo.png');
     }
-    return rtrim($baseUrl, '/') . '/assets/images/logo.svg?v=' . $version;
+    return rtrim($baseUrl, '/') . '/assets/images/Logo.png?v=' . $version;
 }

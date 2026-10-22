@@ -159,21 +159,19 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
   <title>Edit QR Code - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-qr-editor-workspace">
+  <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
+  <link rel="stylesheet" href="assets/css/preview-pane.css?v=20261019f">
+  <?php require __DIR__ . '/includes/google-analytics.php'; ?>
 </head>
-<body class="builder-page workspace-screen qr-editor-screen">
+<body class="builder-page workspace-screen qr-editor-screen workspace-shell-page">
   <div class="qr-editor-layout">
-  <aside class="sidebar" aria-label="Dashboard navigation">
-    <div class="brand-slot"><a class="xinng-brand" href="<?= e(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= e(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a></div>
-    <div class="account"><div class="account-main"><span class="avatar"><?= e(qr_editor_initials($user_name)) ?></span><span><?= e(strtolower(preg_replace('/[^a-z0-9]+/i', '', $user_name ?: 'user'))) ?></span><span aria-hidden="true">v</span></div><a class="icon-btn" href="logout.php" title="Logout" aria-label="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a></div>
-    <nav><div class="nav-section"><div class="nav-heading"><span>Workspace</span><span><i class="fa-solid fa-chevron-up"></i></span></div>
-      <a class="nav-item" href="dashboard.php"><span class="nav-icon"><i class="fa-solid fa-link"></i></span>URL Links</a>
-      <a class="nav-item" href="pages.php"><span class="nav-icon"><i class="fa-regular fa-file-lines"></i></span>Pages</a>
-      <a class="nav-item" href="events.php"><span class="nav-icon"><i class="fa-solid fa-calendar-days"></i></span>Events</a>
-      <a class="nav-item active" href="qr_codes.php"><span class="nav-icon"><i class="fa-solid fa-qrcode"></i></span>QR Codes</a>
-      <a class="nav-item" href="insights.php"><span class="nav-icon"><i class="fa-solid fa-chart-line"></i></span>Insights</a>
-      <a class="nav-item" href="credits.php"><span class="nav-icon"><i class="fa-solid fa-wallet"></i></span>Credits</a>
-    </div></nav>
-  </aside>
+  <?php
+    $sidebarActive = 'qr';
+    $sidebarUserName = $user_name;
+    $sidebarDisplayName = strtolower(preg_replace('/[^a-z0-9]+/i', '', $user_name ?: 'user'));
+    $sidebarBottom = ['eyebrow' => 'QR EDITOR', 'title' => 'Keep the destination flexible.', 'body' => 'You can update this QR code without changing the printed code.'];
+    include __DIR__ . '/includes/workspace-sidebar.php';
+  ?>
   <div class="qr-editor-main">
   <header class="builder-topbar">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -183,6 +181,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     <div class="builder-actions">
       <a class="small-btn" href="qr_codes.php">Cancel</a>
       <button class="small-btn primary" form="qr-edit-form" type="submit"><i class="fa-solid fa-floppy-disk"></i>Save changes</button>
+      <?php include __DIR__ . '/includes/workspace-header-utilities.php'; ?>
     </div>
   </header>
 
@@ -302,7 +301,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
       </div>
     </section>
 
-    <aside class="builder-preview">
+    <aside class="builder-preview" data-preview-pane data-preview-label="QR code preview">
       <div class="builder-panel" style="width:320px;">
         <div class="qr-preview-heading"><span>LIVE PREVIEW</span><small>Updates as you edit</small></div>
         <div class="qr-preview-card" id="qr-preview-card">
@@ -524,5 +523,6 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     updatePreview();
   })();
   </script>
+  <script src="assets/js/preview-pane.js?v=20261019b"></script>
 </body>
 </html>
