@@ -1,8 +1,8 @@
-CREATE DATABASE IF NOT EXISTS xinng
+CREATE DATABASE IF NOT EXISTS lyrivers_xinng
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
-USE xinng;
+USE lyrivers_xinng;
 
 SET FOREIGN_KEY_CHECKS = 0;
 

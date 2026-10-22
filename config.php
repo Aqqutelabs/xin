@@ -233,7 +233,7 @@ $QR_LABEL = "xinng";
 // Database configuration. Production values should be supplied through .env.
 // The defaults keep the local XAMPP setup working.
 if (!defined('DB_HOST')) define('DB_HOST', xinng_env('DB_HOST', 'localhost'));
-if (!defined('DB_NAME')) define('DB_NAME', xinng_env('DB_NAME', 'xinng'));
+if (!defined('DB_NAME')) define('DB_NAME', xinng_env('DB_NAME', 'lyrivers_xinng'));
 if (!defined('DB_USER')) define('DB_USER', xinng_env('DB_USER', 'root'));
 if (!defined('DB_PASS')) define('DB_PASS', xinng_env('DB_PASS'));
 if (!defined('DB_CHARSET')) define('DB_CHARSET', xinng_env('DB_CHARSET', 'utf8mb4'));
