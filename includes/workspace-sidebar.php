@@ -31,7 +31,7 @@ body.workspace-sidebar-collapsed .workspace-sidebar .nav-subitems{margin:0;paddi
 <aside class="sidebar workspace-sidebar" aria-label="Dashboard navigation">
   <button class="workspace-sidebar-edge-toggle" type="button" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
   <div class="brand-slot" aria-label="xin.ng brand">
-    <a class="xinng-brand" href="<?= $sidebarEscape(xinng_public_base_url()) ?>/index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= $sidebarEscape(xinng_brand_logo_url(xinng_public_base_url())) ?>" alt="Xinng" width="1736" height="906"></a>
+    <a class="xinng-brand" href="index.php" aria-label="Xinng home"><img class="xinng-brand__image" src="<?= $sidebarEscape(xinng_brand_logo_url()) ?>" alt="Xinng" width="1736" height="906"></a>
   </div>
   <nav>
     <div class="nav-section">

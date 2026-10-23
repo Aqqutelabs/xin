@@ -158,7 +158,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Edit QR Code - <?= e($APP_NAME ?? 'xin.ng') ?></title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261017-qr-editor-workspace">
+  <link rel="stylesheet" href="assets/css/dashboard.css?v=20261023-logo-control">
   <link rel="stylesheet" href="assets/css/workspace-sidebar.css?v=20261019e">
   <link rel="stylesheet" href="assets/css/preview-pane.css?v=20261019f">
   <?php require __DIR__ . '/includes/google-analytics.php'; ?>
@@ -280,9 +280,9 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
               <div class="field logo-upload-field">
                 <label for="logo-file">Add logo to center</label>
                 <div class="file-picker">
-                  <input id="logo-file" name="logo_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml">
-                  <label class="file-picker-btn" for="logo-file"><i class="fa-regular fa-image"></i>Choose logo</label>
-                  <span class="file-picker-name" id="logo-file-name">No logo chosen</span>
+                  <input class="file-picker-input" id="logo-file" name="logo_file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" tabindex="-1">
+                  <button class="file-picker-btn" id="choose-logo-button" type="button"><i class="fa-regular fa-image" aria-hidden="true"></i><span><?= !empty($qr['logo_path']) ? 'Change logo' : 'Choose logo' ?></span></button>
+                  <span class="file-picker-name" id="logo-file-name" aria-live="polite"><?= !empty($qr['logo_path']) ? 'Current logo selected' : 'No logo chosen' ?></span>
                 </div>
               </div>
               <?php if (!empty($qr['logo_path'])): ?><p class="muted-row">Current logo: <?= e($qr['logo_path']) ?></p><?php endif; ?>
@@ -337,6 +337,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const svgButton = document.getElementById('download-qr-svg');
     const logoFileInput = form?.elements.logo_file || null;
     const logoFileName = document.getElementById('logo-file-name');
+    const chooseLogoButton = document.getElementById('choose-logo-button');
 
     document.querySelectorAll('.qr-builder-tabs button').forEach((button) => {
       button.addEventListener('click', () => {
@@ -353,7 +354,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const savedQrDataUrl = <?= json_encode($previewQrDataUrl) ?>;
     const fallbackDestination = <?= json_encode($previewDestination) ?>;
     const savedLogoPath = <?= json_encode($qr['logo_path'] ?? '') ?>;
-    const defaultXinngLogo = <?= json_encode(rtrim(xinng_public_base_url(), '/') . '/assets/images/logo-icon.svg') ?>;
+    const defaultXinngLogo = 'assets/images/logo-icon.svg';
     const qrCanvasSize = 260;
     const qrLogoSize = 65;
     let previewTimer = null;
@@ -395,8 +396,12 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     function normalizeUrl(value) {
       value = String(value || '').trim();
       if (value === '') return fallbackDestination;
-      if (!/^https?:\/\//i.test(value)) value = 'https://' + value;
-      return value;
+      const explicitScheme = value.match(/^(https?):\/+(.+)$/i);
+      if (explicitScheme) {
+        const remainder = explicitScheme[2].replace(/^(?:https?):\/+/i, '');
+        return explicitScheme[1].toLowerCase() + '://' + remainder;
+      }
+      return 'https://' + value;
     }
 
     function qrDataUrl(destination) {
@@ -510,8 +515,12 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
       if (logoFileName) {
         logoFileName.textContent = logoFileInput.files?.[0]?.name || 'No logo chosen';
       }
+      const buttonText = chooseLogoButton?.querySelector('span');
+      if (buttonText && logoFileInput.files?.length) buttonText.textContent = 'Change logo';
       updatePreview();
     });
+
+    chooseLogoButton?.addEventListener('click', () => logoFileInput?.click());
 
     pngButton?.addEventListener('click', () => {
       qrCode.download({ name: safeFileName(form.elements.title?.value || 'xinng-qr-code'), extension: 'png' });

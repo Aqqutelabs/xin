@@ -65,8 +65,8 @@ if ($APP_ENV === 'production') {
 $ADMIN_PASSWORD_HASH = '$2y$10$7uL.r0Qr52/V9OaMT03yXuVtCr4f1sW53orhjxiiHQxZw.7UqWpf.';
 
 // Public links are shareable xin.ng URLs even while the editor runs locally.
-// Environment values can still override this for a deliberate staging domain.
-$configuredPublicUrl = xinng_env('APP_URL', xinng_env('PUBLIC_URL', xinng_env('SITE_URL', 'https://xin.ng')));
+// Keep this separate from APP_URL, which may be a localhost installation URL.
+$configuredPublicUrl = xinng_env('PUBLIC_URL', 'https://xin.ng');
 $PUBLIC_URL = xinng_normalize_public_url($configuredPublicUrl);
 
 // AI page generation providers. Keys stay server-side and are never exposed to the browser.
@@ -1133,7 +1133,10 @@ function xinng_validate_back_half(PDO $pdo, string $raw, ?int $current_short_lin
 function xinng_validate_destination_url(string $url): array {
 	$url = trim($url);
 	if ($url === '') return ['ok' => false, 'error' => 'Destination URL is required.'];
-	if (!preg_match('/^https?:\/\//i', $url)) {
+	if (preg_match('#^(https?):/+(.+)$#i', $url, $matches)) {
+		$remainder = preg_replace('#^(?:https?):/+#i', '', $matches[2]);
+		$url = strtolower($matches[1]) . '://' . $remainder;
+	} else {
 		$url = 'https://' . $url;
 	}
 	if (!filter_var($url, FILTER_VALIDATE_URL)) {
