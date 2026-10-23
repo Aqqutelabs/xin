@@ -165,6 +165,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	}
 }
 
+$isAjaxSave = $_SERVER['REQUEST_METHOD'] === 'POST'
+	&& strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+if ($isAjaxSave) {
+	header('Content-Type: application/json; charset=utf-8');
+	if ($saved) {
+		echo json_encode([
+			'ok' => true,
+			'message' => 'Saved',
+			'qr_code' => [
+				'id' => (int)$qr['id'],
+				'logo_path' => $qr['logo_path'] ?? null,
+				'remove_xinng_logo' => !empty($qr['remove_xinng_logo']),
+				'updated_at' => $qr['updated_at'] ?? null,
+			],
+		]);
+	} else {
+		http_response_code(422);
+		echo json_encode(['ok' => false, 'errors' => $errors ?: ['Changes could not be saved.']]);
+	}
+	exit;
+}
+
 $shortLinkDomain = str_replace(['http://', 'https://'], '', xinng_public_base_url()) . '/';
 $previewTitle = $qr['title'] ?: ($qr['name'] ?: 'QR Code');
 $previewDestination = $qr['destination_url'] ?: xinng_qr_scan_url($id);
@@ -364,12 +386,37 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const saveButton = document.getElementById('save-qr-button');
 
     function markUnsaved() {
-      if (!saveButton || !saveButton.classList.contains('is-saved')) return;
-      saveButton.classList.remove('is-saved');
+      if (!saveButton || (!saveButton.classList.contains('is-saved') && !saveButton.classList.contains('has-error'))) return;
+      saveButton.classList.remove('is-saved', 'has-error', 'is-saving');
+      saveButton.disabled = false;
       const icon = saveButton.querySelector('i');
       const label = saveButton.querySelector('span');
       if (icon) icon.className = 'fa-solid fa-floppy-disk';
       if (label) label.textContent = 'Save changes';
+    }
+
+    function setSaveState(state, message = '') {
+      if (!saveButton) return;
+      const icon = saveButton.querySelector('i');
+      const label = saveButton.querySelector('span');
+      saveButton.classList.toggle('is-saved', state === 'saved');
+      saveButton.classList.toggle('is-saving', state === 'saving');
+      saveButton.classList.toggle('has-error', state === 'error');
+      saveButton.disabled = state === 'saving';
+      if (icon) icon.className = state === 'saved' ? 'fa-solid fa-check' : (state === 'saving' ? 'fa-solid fa-spinner fa-spin' : (state === 'error' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-floppy-disk'));
+      if (label) label.textContent = message || (state === 'saved' ? 'Saved' : (state === 'saving' ? 'Saving…' : (state === 'error' ? 'Save failed' : 'Save changes')));
+    }
+
+    function showSaveError(message) {
+      let notice = document.getElementById('qr-save-error');
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'qr-save-error';
+        notice.className = 'notice';
+        form.before(notice);
+      }
+      notice.textContent = String(message || 'Changes could not be saved.');
+      notice.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     document.querySelectorAll('.qr-builder-tabs button').forEach((button) => {
@@ -386,7 +433,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const isProfile = <?= $isProfile ? 'true' : 'false' ?>;
     const savedQrDataUrl = <?= json_encode($previewQrDataUrl) ?>;
     const fallbackDestination = <?= json_encode($previewDestination) ?>;
-    const savedLogoPath = <?= json_encode($qr['logo_path'] ?? '') ?>;
+    let savedLogoPath = <?= json_encode($qr['logo_path'] ?? '') ?>;
     const defaultXinngLogo = 'assets/images/logo-icon.svg';
     const qrCanvasSize = 260;
     const qrLogoSize = 65;
@@ -558,6 +605,62 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     });
 
     chooseLogoButton?.addEventListener('click', () => logoFileInput?.click());
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      document.getElementById('qr-save-error')?.remove();
+      setSaveState('saving');
+      try {
+        const response = await fetch(window.location.href, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+          body: new FormData(form),
+          credentials: 'same-origin'
+        });
+        const responseText = await response.text();
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch (_) {
+          throw new Error('The server did not return a valid save response (HTTP ' + response.status + ').');
+        }
+        if (!response.ok || !result.ok) {
+          throw new Error((result.errors || [result.error || 'Changes could not be saved.']).join(' '));
+        }
+        savedLogoPath = result.qr_code?.logo_path || savedLogoPath;
+        if (logoFileInput) logoFileInput.value = '';
+        if (logoFileName && savedLogoPath) logoFileName.textContent = 'Current logo selected';
+        setSaveState('saved');
+      } catch (error) {
+        setSaveState('error');
+        showSaveError(error?.message || 'Changes could not be saved.');
+      }
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      document.getElementById('qr-save-error')?.remove();
+      setSaveState('saving');
+      try {
+        const response = await fetch(window.location.href, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+          body: new FormData(form),
+          credentials: 'same-origin'
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) {
+          throw new Error((result.errors || [result.error || 'Changes could not be saved.']).join(' '));
+        }
+        savedLogoPath = result.qr_code?.logo_path || savedLogoPath;
+        if (logoFileInput) logoFileInput.value = '';
+        if (logoFileName && savedLogoPath) logoFileName.textContent = 'Current logo selected';
+        setSaveState('saved');
+      } catch (error) {
+        setSaveState('error');
+        showSaveError(error?.message || 'Changes could not be saved.');
+      }
+    });
 
     pngButton?.addEventListener('click', () => {
       qrCode.download({ name: safeFileName(form.elements.title?.value || 'xinng-qr-code'), extension: 'png' });
