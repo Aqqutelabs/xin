@@ -41,12 +41,12 @@
     close.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (focusControl && open) close.focus();
   };
-  const setOpen = open => {
+  const setOpen = (open, focusControl = false) => {
     if (narrow.matches) mobileOpen = open;
     else {
       desktopOpen = open;
     }
-    render(true);
+    render(focusControl);
   };
   render();
   close.addEventListener('click', () => setOpen(false));

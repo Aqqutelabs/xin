@@ -64,11 +64,10 @@ if ($APP_ENV === 'production') {
 // Generate a new hash at: /admin.php?make_hash=YOUR_NEW_PASSWORD
 $ADMIN_PASSWORD_HASH = '$2y$10$7uL.r0Qr52/V9OaMT03yXuVtCr4f1sW53orhjxiiHQxZw.7UqWpf.';
 
-// Optional: set your final public URL here after upload, e.g. https://xin.ng
-// Leave blank to auto-detect current URL.
-// In production (including cPanel), prefer setting APP_URL or PUBLIC_URL in .env
-// so links are generated with your live domain instead of localhost.
-$PUBLIC_URL = xinng_normalize_public_url(getenv('APP_URL') ?: getenv('PUBLIC_URL') ?: getenv('SITE_URL') ?: '');
+// Public links are shareable xin.ng URLs even while the editor runs locally.
+// Environment values can still override this for a deliberate staging domain.
+$configuredPublicUrl = xinng_env('APP_URL', xinng_env('PUBLIC_URL', xinng_env('SITE_URL', 'https://xin.ng')));
+$PUBLIC_URL = xinng_normalize_public_url($configuredPublicUrl);
 
 // AI page generation providers. Keys stay server-side and are never exposed to the browser.
 if (!defined('AI_DEFAULT_PROVIDER')) define('AI_DEFAULT_PROVIDER', strtolower(xinng_env('AI_DEFAULT_PROVIDER', 'gemini')));
@@ -582,69 +581,20 @@ function xinng_record_admin_activity(PDO $pdo, int $actorUserId, string $eventTy
 
 function xinng_public_api_user_id(array $payload = []): int {
 	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-	$value = $payload['user_id']
-		?? $payload['account_id']
-		?? $_GET['user_id']
-		?? $_GET['account_id']
-		?? $_POST['user_id']
-		?? $_POST['account_id']
-		?? $_SESSION['user_id']
-		?? 0;
+	// Browser requests must derive ownership from the authenticated session.
+	// Never allow a request parameter to impersonate another account.
+	$value = $_SESSION['user_id'] ?? 0;
 	$userId = filter_var($value, FILTER_VALIDATE_INT);
 	return $userId !== false && $userId > 0 ? $userId : 0;
 }
 
 function xinng_public_api_account_user_id(PDO $pdo, array $payload = []): int {
 	if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-	$value = $payload['user_id']
-		?? $payload['account_id']
-		?? $_GET['user_id']
-		?? $_GET['account_id']
-		?? $_POST['user_id']
-		?? $_POST['account_id']
-		?? $_SESSION['user_id']
-		?? 0;
-
-	if (is_int($value) || (is_string($value) && preg_match('/^[0-9]+$/D', $value))) {
-		$userId = filter_var($value, FILTER_VALIDATE_INT);
-		return $userId !== false && $userId > 0 ? $userId : 0;
-	}
-	if (!is_string($value)) return 0;
-	$externalId = trim($value);
-	if ($externalId === '' || strlen($externalId) > 191) return 0;
-
-	xinng_ensure_credit_tables($pdo);
-	$pdo->exec("
-		CREATE TABLE IF NOT EXISTS api_external_accounts (
-			external_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
-			user_id BIGINT UNSIGNED NOT NULL UNIQUE,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_api_external_accounts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-	");
-	$stmt = $pdo->prepare('SELECT user_id FROM api_external_accounts WHERE external_id = ? LIMIT 1');
-	$stmt->execute([$externalId]);
-	$userId = $stmt->fetchColumn();
-	if ($userId !== false) return (int)$userId;
-
-	$email = 'external-' . hash('sha256', $externalId) . '@api.xinng.invalid';
-	try {
-		$pdo->beginTransaction();
-		$stmt = $pdo->prepare('INSERT INTO users (uuid, name, email, password_hash, created_at, updated_at) VALUES (UUID(), ?, ?, ?, NOW(), NOW())');
-		$stmt->execute(['External API account', $email, password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT)]);
-		$userId = (int)$pdo->lastInsertId();
-		$stmt = $pdo->prepare('INSERT INTO api_external_accounts (external_id, user_id) VALUES (?, ?)');
-		$stmt->execute([$externalId, $userId]);
-		$pdo->commit();
-		return $userId;
-	} catch (PDOException $error) {
-		if ($pdo->inTransaction()) $pdo->rollBack();
-		$stmt = $pdo->prepare('SELECT user_id FROM api_external_accounts WHERE external_id = ? LIMIT 1');
-		$stmt->execute([$externalId]);
-		$userId = $stmt->fetchColumn();
-		if ($userId !== false) return (int)$userId;
-		throw $error;
-	}
+	$userId = xinng_public_api_user_id();
+	if ($userId > 0) return $userId;
+	$token = xinng_request_bearer_token();
+	if ($token === null) return 0;
+	return xinng_api_token_user_id($pdo, $token) ?? 0;
 }
 
 function xinng_ensure_api_token_table(PDO $pdo): void {
@@ -753,11 +703,10 @@ function xinng_migrate_http_public_urls(PDO $pdo): void {
 	$tables = [
 		['qr_codes', 'destination_url'],
 		['short_links', 'destination_url'],
-		['qr_codes', 'qr_image_url'],
 	];
 	foreach ($tables as [$table, $column]) {
 		$stmt = $pdo->prepare("SELECT id, {$column} FROM {$table} WHERE {$column} LIKE ? OR {$column} LIKE ? OR {$column} LIKE ? OR {$column} LIKE ?");
-		$stmt->execute(['http://%', 'https://localhost/xinngqr/%', 'https://127.0.0.1/xinngqr/%', 'https://[::1]/xinngqr/%']);
+		$stmt->execute(['http://%', '%localhost%', '%127.0.0.1%', '%[::1]%']);
 		while ($row = $stmt->fetch()) {
 			$url = (string)($row[$column] ?? '');
 			if ($url === '') continue;
@@ -766,7 +715,7 @@ function xinng_migrate_http_public_urls(PDO $pdo): void {
 			$path = (string)($parts['path'] ?? '');
 			$isLocalHost = in_array($sourceHost, ['localhost', '127.0.0.1', '::1'], true);
 			// Remove the legacy XAMPP project folder when rebasing imported URLs.
-			if ($isLocalHost && preg_match('#^/xinngqr/(.+)$#i', $path, $matches)) {
+			if ($isLocalHost && preg_match('#^/(?:xinngqr|xing)/(.+)$#i', $path, $matches)) {
 				$normalized = $base . '/' . ltrim($matches[1], '/');
 				if (!empty($parts['query'])) $normalized .= '?' . $parts['query'];
 				if (!empty($parts['fragment'])) $normalized .= '#' . $parts['fragment'];
@@ -781,6 +730,14 @@ function xinng_migrate_http_public_urls(PDO $pdo): void {
 				$up->execute([$normalized, (int)$row['id']]);
 			}
 		}
+	}
+
+	// QR image-provider URLs embed the destination as an encoded query value.
+	// Regenerate them instead of trying to edit the encoded URL in place.
+	$stmt = $pdo->query("SELECT * FROM qr_codes WHERE qr_image_url LIKE '%localhost%' OR qr_image_url LIKE '%127.0.0.1%' OR qr_image_url LIKE '%25%3A%3A1%' ESCAPE '#' ");
+	while ($row = $stmt->fetch()) {
+		$up = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
+		$up->execute([xinng_qr_image_url_for_row($row), (int)$row['id']]);
 	}
 }
 
@@ -1315,8 +1272,8 @@ function xinng_ensure_page_qr_code(PDO $pdo, int $user_id, int $page_id, string 
 	$existing = $stmt->fetch();
 
 	if ($existing) {
-		$stmt = $pdo->prepare('UPDATE qr_codes SET title = ?, name = ?, destination_url = ?, page_id = ?, updated_at = NOW() WHERE id = ?');
-		$stmt->execute([$safeTitle, $safeTitle, $destination, $page_id, (int)$existing['id']]);
+		$stmt = $pdo->prepare('UPDATE qr_codes SET title = ?, name = ?, destination_url = ?, page_id = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+		$stmt->execute([$safeTitle, $safeTitle, $destination, $page_id, (int)$existing['id'], $user_id]);
 		$id = (int)$existing['id'];
 	} else {
 		$stmt = $pdo->prepare('INSERT INTO qr_codes (user_id, page_id, profile_page_id, type, title, name, destination_url, status, code_color, background_color, pattern_style, corner_style, created_at, updated_at) VALUES (?, ?, ?, "profile_page", ?, ?, ?, "active", "#000000", "#FFFFFF", "default", "square", NOW(), NOW())');
@@ -1324,8 +1281,8 @@ function xinng_ensure_page_qr_code(PDO $pdo, int $user_id, int $page_id, string 
 		$id = (int)$pdo->lastInsertId();
 	}
 
-	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
-	$stmt->execute([xinng_qr_image_url($id, '#000000', '#FFFFFF', $destination), $id]);
+	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ? AND user_id = ?');
+	$stmt->execute([xinng_qr_image_url($id, '#000000', '#FFFFFF', $destination), $id, $user_id]);
 	return $id;
 }
 

@@ -65,11 +65,11 @@ if ($pdo) {
 			$stmt = $pdo->prepare('INSERT INTO qr_codes (user_id, page_id, profile_page_id, type, title, name, destination_url, status, code_color, background_color, pattern_style, corner_style, created_at, updated_at) VALUES (?, ?, ?, "profile_page", ?, ?, ?, "active", "#000000", "#FFFFFF", "default", "square", NOW(), NOW())');
 			$stmt->execute([$user_id, (int)$activePage['id'], (int)$activePage['id'], $title, $title, $destination]);
 			$id = (int)$pdo->lastInsertId();
-			$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
-			$stmt->execute([xinng_qr_image_url($id, '#000000', '#FFFFFF', $destination), $id]);
+			$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ? AND user_id = ?');
+			$stmt->execute([xinng_qr_image_url($id, '#000000', '#FFFFFF', $destination), $id, $user_id]);
 		} else {
-			$stmt = $pdo->prepare('UPDATE qr_codes SET title = ?, destination_url = ?, page_id = ?, updated_at = NOW() WHERE id = ?');
-			$stmt->execute([$activePage['title'] . ' page QR', $destination, (int)$activePage['id'], (int)$profileQr['id']]);
+			$stmt = $pdo->prepare('UPDATE qr_codes SET title = ?, destination_url = ?, page_id = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+			$stmt->execute([$activePage['title'] . ' page QR', $destination, (int)$activePage['id'], (int)$profileQr['id'], $user_id]);
 		}
 	}
 
@@ -298,7 +298,7 @@ $previewQr = $qrCodes[0] ?? null;
         backgroundOptions: { color: backgroundColor },
         cornersSquareOptions: { type: mapCornerType(design.corner_style), color: cornerColor },
         cornersDotOptions: { type: mapCornerType(design.corner_style), color: cornerColor },
-        image: design.remove_xinng_logo ? undefined : (design.logo_path || 'assets/images/logo-icon.svg'),
+        image: design.remove_xinng_logo ? undefined : (design.logo_path || <?= json_encode(rtrim(xinng_public_base_url(), '/') . '/assets/images/logo-icon.svg') ?>),
         imageOptions: { crossOrigin: 'anonymous', margin: 8, imageSize: 0.25 }
       });
       download.disabled = true;

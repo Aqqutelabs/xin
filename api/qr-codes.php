@@ -68,8 +68,8 @@ function ensure_profile_qr(PDO $pdo, int $user_id): ?array {
 	$row = $stmt->fetch();
 	$destination = xinng_short_url($page['slug']);
 	if ($row) {
-		$stmt = $pdo->prepare('UPDATE qr_codes SET title = ?, destination_url = ?, page_id = ?, updated_at = NOW() WHERE id = ?');
-		$stmt->execute([$page['title'] . ' page QR', $destination, (int)$page['id'], (int)$row['id']]);
+		$stmt = $pdo->prepare('UPDATE qr_codes SET title = ?, destination_url = ?, page_id = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+		$stmt->execute([$page['title'] . ' page QR', $destination, (int)$page['id'], (int)$row['id'], $user_id]);
 		return current_qr($pdo, (int)$row['id'], $user_id);
 	}
 
@@ -77,8 +77,8 @@ function ensure_profile_qr(PDO $pdo, int $user_id): ?array {
 	$title = $page['title'] . ' page QR';
 	$stmt->execute([$user_id, (int)$page['id'], (int)$page['id'], $title, $title, $destination]);
 	$id = (int)$pdo->lastInsertId();
-	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
-	$stmt->execute([xinng_qr_image_url($id, '#000000', '#FFFFFF', $destination), $id]);
+	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ? AND user_id = ?');
+	$stmt->execute([xinng_qr_image_url($id, '#000000', '#FFFFFF', $destination), $id, $user_id]);
 	return current_qr($pdo, $id, $user_id);
 }
 
@@ -101,8 +101,8 @@ function save_qr_data(PDO $pdo, int $user_id, array $payload, ?array $existing =
 			$stmt->execute([(int)$shortLinkId, $user_id]);
 			$old = $stmt->fetch();
 			if ($old && rtrim($old['destination_url'], '/') === rtrim($destination['url'], '/')) {
-				$stmt = $pdo->prepare('UPDATE short_links SET title = ?, back_half = ?, updated_at = NOW() WHERE id = ?');
-				$stmt->execute([$title, $backHalf['back_half'], (int)$shortLinkId]);
+				$stmt = $pdo->prepare('UPDATE short_links SET title = ?, back_half = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+				$stmt->execute([$title, $backHalf['back_half'], (int)$shortLinkId, $user_id]);
 			} else {
 				if ($old && $old['back_half'] === $backHalf['back_half']) {
 					return ['ok' => false, 'error' => 'Changing the destination creates a new short link. Choose a new back-half.'];
@@ -140,11 +140,11 @@ function save_qr_data(PDO $pdo, int $user_id, array $payload, ?array $existing =
 		$id = (int)$pdo->lastInsertId();
 	}
 
-	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ?');
+	$stmt = $pdo->prepare('UPDATE qr_codes SET qr_image_url = ? WHERE id = ? AND user_id = ?');
 	$qrDataUrl = !empty($backHalf['back_half'])
 		? xinng_short_url($backHalf['back_half'])
 		: $destination['url'];
-	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $qrDataUrl), $id]);
+	$stmt->execute([xinng_qr_image_url($id, $codeColor, $bgColor, $qrDataUrl), $id, $user_id]);
 	return ['ok' => true, 'qr_code' => qr_row(current_qr($pdo, $id, $user_id))];
 }
 

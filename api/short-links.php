@@ -87,8 +87,8 @@ try {
 		$stmt = $pdo->prepare('INSERT INTO short_links (user_id, title, destination_url, back_half, status, created_at, updated_at) VALUES (?, ?, ?, ?, "active", NOW(), NOW())');
 		$stmt->execute([$user_id, $title, $destination['url'], $backHalf['back_half']]);
 		$shortLinkId = (int)$pdo->lastInsertId();
-		$stmt = $pdo->prepare('SELECT * FROM short_links WHERE id = ? AND deleted_at IS NULL LIMIT 1');
-		$stmt->execute([$shortLinkId]);
+		$stmt = $pdo->prepare('SELECT * FROM short_links WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1');
+		$stmt->execute([$shortLinkId, $user_id]);
 		$row = $stmt->fetch() ?: null;
 		echo json_encode(['ok' => true, 'short_link' => short_link_row($row)]);
 		exit;

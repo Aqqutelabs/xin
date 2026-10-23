@@ -85,8 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 					$stmt->execute([(int)$shortLinkId, $user_id]);
 					$oldDestination = $stmt->fetchColumn();
 					if ($oldDestination && rtrim($oldDestination, '/') === rtrim($destination['url'], '/')) {
-						$stmt = $pdo->prepare('UPDATE short_links SET title = ?, back_half = ?, updated_at = NOW() WHERE id = ?');
-						$stmt->execute([$title, $backHalf['back_half'], (int)$shortLinkId]);
+						$stmt = $pdo->prepare('UPDATE short_links SET title = ?, back_half = ?, updated_at = NOW() WHERE id = ? AND user_id = ?');
+						$stmt->execute([$title, $backHalf['back_half'], (int)$shortLinkId, $user_id]);
 					} else {
 						$stmt = $pdo->prepare('SELECT back_half FROM short_links WHERE id = ? AND user_id = ? LIMIT 1');
 						$stmt->execute([(int)$shortLinkId, $user_id]);
@@ -301,7 +301,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
       </div>
     </section>
 
-    <aside class="builder-preview" data-preview-pane data-preview-label="QR code preview">
+    <aside class="builder-preview" data-preview-pane data-preview-default-open="true" data-preview-label="QR code preview">
       <div class="builder-panel" style="width:320px;">
         <div class="qr-preview-heading"><span>LIVE PREVIEW</span><small>Updates as you edit</small></div>
         <div class="qr-preview-card" id="qr-preview-card">
@@ -353,7 +353,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const savedQrDataUrl = <?= json_encode($previewQrDataUrl) ?>;
     const fallbackDestination = <?= json_encode($previewDestination) ?>;
     const savedLogoPath = <?= json_encode($qr['logo_path'] ?? '') ?>;
-    const defaultXinngLogo = 'assets/images/logo-icon.svg';
+    const defaultXinngLogo = <?= json_encode(rtrim(xinng_public_base_url(), '/') . '/assets/images/logo-icon.svg') ?>;
     const qrCanvasSize = 260;
     const qrLogoSize = 65;
     let previewTimer = null;
@@ -523,6 +523,6 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     updatePreview();
   })();
   </script>
-  <script src="assets/js/preview-pane.js?v=20261019b"></script>
+  <script src="assets/js/preview-pane.js?v=20261023a"></script>
 </body>
 </html>

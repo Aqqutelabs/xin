@@ -83,8 +83,8 @@ if ($pdo) {
         $stmt->execute([$pid]);
         $page['links'] = $stmt->fetchAll();
 
-        $stmt = $pdo->prepare('SELECT id, qr_image_url, destination_url, scan_count FROM qr_codes WHERE page_id = ? ORDER BY id ASC LIMIT 1');
-        $stmt->execute([$pid]);
+        $stmt = $pdo->prepare('SELECT id, qr_image_url, destination_url, scan_count FROM qr_codes WHERE page_id = ? AND user_id = ? AND deleted_at IS NULL ORDER BY id ASC LIMIT 1');
+        $stmt->execute([$pid, $user_id]);
         $page['qr'] = $stmt->fetch() ?: null;
     }
     unset($page);

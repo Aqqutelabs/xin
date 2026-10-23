@@ -16,7 +16,7 @@
  });
  let assets;
  const getAssets = () => {
-  if (!assets) assets = Promise.all([loadImage(base + '/assets/images/Logo.png'), loadImage(base + '/assets/images/drag-xinng/stare.png')]).catch(error => { assets = null; throw error; });
+  if (!assets) assets = Promise.all([loadImage(base + '/assets/images/logo.png'), loadImage(base + '/assets/images/drag-xinng/stare.png')]).catch(error => { assets = null; throw error; });
   return assets;
  };
  const draw = async card => {

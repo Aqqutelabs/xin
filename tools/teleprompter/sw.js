@@ -2,7 +2,7 @@
 const BASE=new URL('../../',self.location.href).pathname;
 const CACHE='xinng-teleprompter-v3-'+BASE;
 const SHELL=BASE+'tools/teleprompter/';
-const FILES=[SHELL,BASE+'assets/css/style.css',BASE+'assets/css/brand.css',BASE+'assets/images/Logo.png',BASE+'assets/css/teleprompter.css',BASE+'assets/images/logo-icon.svg',...['app.mjs','core.mjs','imports.mjs'].map(name=>BASE+'assets/js/teleprompter/'+name)];
+const FILES=[SHELL,BASE+'assets/css/style.css',BASE+'assets/css/brand.css',BASE+'assets/images/logo.png',BASE+'assets/css/teleprompter.css',BASE+'assets/images/logo-icon.svg',...['app.mjs','core.mjs','imports.mjs'].map(name=>BASE+'assets/js/teleprompter/'+name)];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('xinng-teleprompter-')&&key.endsWith('-'+BASE)&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{
