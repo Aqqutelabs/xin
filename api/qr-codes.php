@@ -93,7 +93,7 @@ function save_qr_data(PDO $pdo, int $user_id, array $payload, ?array $existing =
 	$backHalf = xinng_validate_qr_back_half($pdo, $payload['back_half'] ?? '', $qrId, $currentShortLinkId);
 	if (!$backHalf['ok']) return $backHalf;
 
-	$shortLinkId = !empty($backHalf['back_half']) ? ($existing['short_link_id'] ?? null) : null;
+	$shortLinkId = !empty($backHalf['back_half']) ? ($backHalf['short_link_id'] ?? ($existing['short_link_id'] ?? null)) : null;
 	if (!empty($backHalf['back_half'])) {
 		if ($shortLinkId) {
 			$old = null;

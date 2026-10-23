@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		}
 
 		if (!$errors) {
-			$shortLinkId = !empty($backHalf['back_half']) ? ($qr['short_link_id'] ?? null) : null;
+			$shortLinkId = !empty($backHalf['back_half']) ? ($backHalf['short_link_id'] ?? ($qr['short_link_id'] ?? null)) : null;
 			if (!$isProfile && !empty($backHalf['back_half'])) {
 				if ($shortLinkId) {
 					$stmt = $pdo->prepare('SELECT destination_url FROM short_links WHERE id = ? AND user_id = ? LIMIT 1');

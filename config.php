@@ -1843,6 +1843,28 @@ function xinng_record_qr_scan(PDO $pdo, int $qr_code_id, int $page_id): void {
 function xinng_validate_qr_back_half(PDO $pdo, ?string $raw, ?int $current_qr_id = null, ?int $current_short_link_id = null): array {
 	$raw = trim((string)$raw);
 	if ($raw === '') return ['ok' => true, 'back_half' => null];
+	$normalized = xinng_normalize_back_half($raw);
+
+	// Older/imported QR rows may own a short link without having short_link_id
+	// populated. The QR's stored slug and account establish that ownership.
+	if ($normalized !== null && $current_qr_id && !$current_short_link_id) {
+		$stmt = $pdo->prepare('
+			SELECT s.id
+			FROM qr_codes q
+			JOIN short_links s
+			  ON s.user_id = q.user_id
+			 AND s.back_half = ?
+			WHERE q.id = ?
+			  AND q.deleted_at IS NULL
+			  AND q.back_half = ?
+			  AND s.deleted_at IS NULL
+			LIMIT 1
+		');
+		$stmt->execute([$normalized, $current_qr_id, $normalized]);
+		$ownedShortLinkId = (int)($stmt->fetchColumn() ?: 0);
+		if ($ownedShortLinkId > 0) $current_short_link_id = $ownedShortLinkId;
+	}
+
 	$base = xinng_validate_back_half($pdo, $raw, $current_short_link_id);
 	if (!$base['ok']) return $base;
 	if ($current_qr_id) {
@@ -1855,7 +1877,11 @@ function xinng_validate_qr_back_half(PDO $pdo, ?string $raw, ?int $current_qr_id
 	if ((int)$stmt->fetchColumn() > 0) {
 		return ['ok' => false, 'error' => 'This back-half is already used by a QR code.'];
 	}
-	return ['ok' => true, 'back_half' => $base['back_half']];
+	return [
+		'ok' => true,
+		'back_half' => $base['back_half'],
+		'short_link_id' => $current_short_link_id,
+	];
 }
 
 function xinng_persist_pending_qr(PDO $pdo, array $qrData, ?int $userId = null): ?int {

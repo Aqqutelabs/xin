@@ -45,3 +45,7 @@ uploads/**
 /color-scheme.php
 /assets/css/color-scheme.css
 /assets/js/color-scheme.js
+# Archive exports should never be committed.
+*.zip
+*.ZIP
+
