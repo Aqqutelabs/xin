@@ -9,7 +9,10 @@ composer.lock
 
 # Local runtime data
 /logs/
-/uploads/
+/uploads/*
+!/uploads/qr-logos/
+/uploads/qr-logos/*
+!/uploads/qr-logos/.gitkeep
 /tmp/
 /cache/
 
@@ -35,6 +38,8 @@ coverage/
 # Keep public assets tracked when needed, but ignore generated uploads
 uploads/**
 !uploads/.gitkeep
+!uploads/qr-logos/
+!uploads/qr-logos/.gitkeep
 
 # Local color-scheme reference page and its assets
 /color-scheme.php

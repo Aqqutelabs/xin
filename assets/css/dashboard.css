@@ -98,6 +98,7 @@
 .qr-editor-screen .builder-topbar .ghost-btn{min-height:40px;border-radius:9px;box-shadow:none}
 .qr-editor-screen .builder-url{padding-left:4px;color:#6f6562}.qr-editor-screen .builder-url strong{color:#201a19}
 .qr-editor-screen .builder-actions .small-btn{min-height:40px;border-radius:9px}.qr-editor-screen .builder-actions .small-btn.primary{background:#e83b32}
+.qr-editor-screen .builder-actions .small-btn.is-saved{border-color:#218a55;background:#218a55;color:#fff;box-shadow:0 8px 20px rgba(33,138,85,.2)}
 .qr-editor-screen .builder-shell{min-height:0;flex:1;grid-template-columns:minmax(520px,1fr) 380px;background:#fff9f7}
 .qr-editor-screen .builder-workspace{padding:24px 28px 64px}
 .qr-editor-screen .builder-panel{width:min(760px,100%);padding:0;background:transparent;box-shadow:none}

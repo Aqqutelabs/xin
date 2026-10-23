@@ -60,19 +60,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		if (!$backHalf['ok']) $errors[] = $backHalf['error'];
 
 		$logoPath = $qr['logo_path'] ?? null;
-		if (!empty($_FILES['logo_file']['name']) && is_uploaded_file($_FILES['logo_file']['tmp_name'])) {
-			$mime = mime_content_type($_FILES['logo_file']['tmp_name']);
-			if (!in_array($mime, ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'], true)) {
-				$errors[] = 'Logo must be PNG, JPG, WEBP, or SVG.';
+		$logoUpload = $_FILES['logo_file'] ?? null;
+		if (is_array($logoUpload) && ($logoUpload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+			$uploadError = (int)($logoUpload['error'] ?? UPLOAD_ERR_NO_FILE);
+			if ($uploadError !== UPLOAD_ERR_OK) {
+				$uploadMessages = [
+					UPLOAD_ERR_INI_SIZE => 'The logo is larger than the server upload limit.',
+					UPLOAD_ERR_FORM_SIZE => 'The logo is too large.',
+					UPLOAD_ERR_PARTIAL => 'The logo upload was interrupted. Try again.',
+					UPLOAD_ERR_NO_TMP_DIR => 'The server upload folder is unavailable.',
+					UPLOAD_ERR_CANT_WRITE => 'The server could not save the logo file.',
+					UPLOAD_ERR_EXTENSION => 'The server blocked the logo upload.',
+				];
+				$errors[] = $uploadMessages[$uploadError] ?? 'The logo could not be uploaded.';
+			} elseif (!is_uploaded_file((string)$logoUpload['tmp_name'])) {
+				$errors[] = 'The logo upload could not be verified. Try again.';
+			} elseif ((int)($logoUpload['size'] ?? 0) > 5 * 1024 * 1024) {
+				$errors[] = 'Logo files must be 5 MB or smaller.';
 			} else {
-				$dir = __DIR__ . '/uploads/qr-logos';
-				if (!is_dir($dir)) mkdir($dir, 0775, true);
-				$ext = strtolower(pathinfo($_FILES['logo_file']['name'], PATHINFO_EXTENSION)) ?: 'png';
-				$name = 'qr-' . $id . '-' . bin2hex(random_bytes(4)) . '.' . preg_replace('/[^a-z0-9]/', '', $ext);
-				if (move_uploaded_file($_FILES['logo_file']['tmp_name'], $dir . '/' . $name)) {
-					$logoPath = 'uploads/qr-logos/' . $name;
+				$mime = function_exists('mime_content_type') ? mime_content_type($logoUpload['tmp_name']) : '';
+				$extension = strtolower(pathinfo((string)$logoUpload['name'], PATHINFO_EXTENSION));
+				$allowedMime = in_array($mime, ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'], true);
+				$allowedSvg = $extension === 'svg' && in_array($mime, ['text/plain', 'text/xml', 'application/xml', ''], true);
+				if (!$allowedMime && !$allowedSvg) {
+					$errors[] = 'Logo must be PNG, JPG, WEBP, or SVG.';
 				} else {
+				$dir = __DIR__ . '/uploads/qr-logos';
+				if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+					$errors[] = 'The server logo folder is not writable.';
+				}
+				$ext = $extension ?: 'png';
+				$name = 'qr-' . $id . '-' . bin2hex(random_bytes(4)) . '.' . preg_replace('/[^a-z0-9]/', '', $ext);
+				if (!$errors && move_uploaded_file($logoUpload['tmp_name'], $dir . '/' . $name)) {
+					$logoPath = 'uploads/qr-logos/' . $name;
+				} elseif (!$errors) {
 					$errors[] = 'Unable to save logo upload.';
+				}
 				}
 			}
 		}
@@ -180,7 +203,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     </div>
     <div class="builder-actions">
       <a class="small-btn" href="qr_codes.php">Cancel</a>
-      <button class="small-btn primary" form="qr-edit-form" type="submit"><i class="fa-solid fa-floppy-disk"></i>Save changes</button>
+      <button class="small-btn primary<?= $saved ? ' is-saved' : '' ?>" id="save-qr-button" form="qr-edit-form" type="submit"><i class="fa-solid <?= $saved ? 'fa-check' : 'fa-floppy-disk' ?>"></i><span><?= $saved ? 'Saved' : 'Save changes' ?></span></button>
       <?php include __DIR__ . '/includes/workspace-header-utilities.php'; ?>
     </div>
   </header>
@@ -286,7 +309,7 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
                 </div>
               </div>
               <?php if (!empty($qr['logo_path'])): ?><p class="muted-row">Current logo: <?= e($qr['logo_path']) ?></p><?php endif; ?>
-              <label class="check-row"><input name="remove_xinng_logo" type="checkbox" value="1" <?= !empty($qr['remove_xinng_logo']) ? 'checked' : '' ?>> Remove Xinng logo <span class="muted-inline">Plan enforcement TODO</span></label>
+              <label class="check-row"><input name="remove_xinng_logo" type="checkbox" value="1" <?= !empty($qr['remove_xinng_logo']) ? 'checked' : '' ?>> Remove Xinng logo</label>
             </section>
           </section>
 
@@ -338,6 +361,16 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     const logoFileInput = form?.elements.logo_file || null;
     const logoFileName = document.getElementById('logo-file-name');
     const chooseLogoButton = document.getElementById('choose-logo-button');
+    const saveButton = document.getElementById('save-qr-button');
+
+    function markUnsaved() {
+      if (!saveButton || !saveButton.classList.contains('is-saved')) return;
+      saveButton.classList.remove('is-saved');
+      const icon = saveButton.querySelector('i');
+      const label = saveButton.querySelector('span');
+      if (icon) icon.className = 'fa-solid fa-floppy-disk';
+      if (label) label.textContent = 'Save changes';
+    }
 
     document.querySelectorAll('.qr-builder-tabs button').forEach((button) => {
       button.addEventListener('click', () => {
@@ -506,10 +539,14 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
     }
 
     form.addEventListener('input', () => {
+      markUnsaved();
       window.clearTimeout(previewTimer);
       previewTimer = window.setTimeout(updatePreview, 180);
     });
-    form.addEventListener('change', updatePreview);
+    form.addEventListener('change', () => {
+      markUnsaved();
+      updatePreview();
+    });
     document.querySelectorAll('.color-picker[data-color-input]').forEach(syncColorPicker);
     logoFileInput?.addEventListener('change', () => {
       if (logoFileName) {
