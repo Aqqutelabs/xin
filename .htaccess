@@ -3,13 +3,15 @@ RewriteEngine On
 # Uploaded payment receipts are private and must only be reviewed through authenticated server-side tools.
 RewriteRule ^uploads/bank-receipts/ - [F,L]
 
+# Canonicalize browser GET/HEAD requests from /page.php to /page.
+# THE_REQUEST prevents this from redirecting internal rewrites back into a loop.
+RewriteCond %{REQUEST_METHOD} ^(?:GET|HEAD)$
+RewriteCond %{THE_REQUEST} \s/+(.+?)\.php(?:[\s?]) [NC]
+RewriteRule ^ /%1 [R=301,L,NE]
+
+# Named application routes.
 RewriteRule ^wallet/?$ credits.php [QSA,L]
 RewriteRule ^wallet/plans/?$ wallet_plans.php [QSA,L]
-
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
 RewriteRule ^teleprompter/?$ tools/teleprompter/ [R=302,L]
 RewriteRule ^color-scheme/?$ color-scheme.php [L]
 RewriteRule ^tools/creator-calculator/x/r/([a-f0-9]{48})/?$ tools/creator-calculator/x/result.php?token=$1 [L]
@@ -24,4 +26,16 @@ RewriteRule ^dashboard/pages/?$ pages.php [QSA,L]
 RewriteRule ^dashboard/pages/([0-9]+)/edit/?$ page_builder.php?id=$1 [QSA,L]
 RewriteRule ^q/([0-9]+)/?$ q.php?id=$1 [QSA,L]
 RewriteRule ^u/([A-Za-z0-9_-]+)/?$ public_page.php?slug=$1 [QSA,L]
+
+# Serve real files and directories (assets, uploads, tool folders) unchanged.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Resolve /page to /page.php before the public short-link catch-all below.
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+?)/?$ $1.php [QSA,L]
+
+# Public short links must remain last so application pages win first.
 RewriteRule ^([A-Za-z0-9_-]+)/?$ resolve.php?back_half=$1 [QSA,L]
