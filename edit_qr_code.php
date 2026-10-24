@@ -1,4 +1,12 @@
 <?php
+$requestedAjaxSave = $_SERVER['REQUEST_METHOD'] === 'POST'
+	&& (
+		(string)($_POST['_ajax_save'] ?? '') === '1'
+		|| (string)($_GET['_ajax_save'] ?? '') === '1'
+		|| strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest'
+	);
+if ($requestedAjaxSave) ob_start();
+
 require_once __DIR__ . '/config.php';
 session_start();
 
@@ -165,9 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	}
 }
 
-$isAjaxSave = $_SERVER['REQUEST_METHOD'] === 'POST'
-	&& strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+$isAjaxSave = $requestedAjaxSave;
 if ($isAjaxSave) {
+	if (ob_get_level() > 0) ob_clean();
 	header('Content-Type: application/json; charset=utf-8');
 	if ($saved) {
 		echo json_encode([
@@ -611,10 +619,14 @@ $cornerColorPickerValue = $cornerColorTextValue !== '' ? xinng_validate_hex_colo
       document.getElementById('qr-save-error')?.remove();
       setSaveState('saving');
       try {
-        const response = await fetch(window.location.href, {
+        const saveData = new FormData(form);
+        saveData.set('_ajax_save', '1');
+        const saveUrl = new URL(window.location.href);
+        saveUrl.searchParams.set('_ajax_save', '1');
+        const response = await fetch(saveUrl, {
           method: 'POST',
           headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-          body: new FormData(form),
+          body: saveData,
           credentials: 'same-origin'
         });
         const responseText = await response.text();
