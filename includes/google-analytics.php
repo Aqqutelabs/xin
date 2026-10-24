@@ -1,6 +1,29 @@
 <?php
 declare(strict_types=1);
 
+// Shared browser, Apple, Android, and installed-app icons. This lives in the
+// common head include so every rendered Xinng surface receives the same set.
+if (!defined('XINNG_FAVICONS_RENDERED')) {
+    define('XINNG_FAVICONS_RENDERED', true);
+    $xinngDocumentRoot = !empty($_SERVER['DOCUMENT_ROOT']) ? realpath((string) $_SERVER['DOCUMENT_ROOT']) : false;
+    $xinngAppRoot = realpath(dirname(__DIR__));
+    $xinngBasePath = '';
+    if ($xinngDocumentRoot && $xinngAppRoot && str_starts_with(strtolower($xinngAppRoot), strtolower($xinngDocumentRoot))) {
+        $xinngRelativeRoot = trim(str_replace('\\', '/', substr($xinngAppRoot, strlen($xinngDocumentRoot))), '/');
+        $xinngBasePath = $xinngRelativeRoot !== '' ? '/' . $xinngRelativeRoot : '';
+    }
+    $xinngFaviconBase = htmlspecialchars($xinngBasePath . '/assets/images/favicon', ENT_QUOTES, 'UTF-8');
+    ?>
+<link rel="icon" type="image/png" sizes="16x16" href="<?= $xinngFaviconBase ?>/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="<?= $xinngFaviconBase ?>/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="<?= $xinngFaviconBase ?>/android-chrome-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="<?= $xinngFaviconBase ?>/android-chrome-512x512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="<?= $xinngFaviconBase ?>/apple-touch-icon.png">
+<link rel="shortcut icon" href="<?= $xinngFaviconBase ?>/favicon.ico">
+<link rel="manifest" href="<?= $xinngFaviconBase ?>/site.webmanifest">
+    <?php
+}
+
 /**
  * Shared Google Analytics 4 tag for every rendered Xinng page.
  *
